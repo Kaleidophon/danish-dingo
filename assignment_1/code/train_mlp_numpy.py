@@ -23,99 +23,111 @@ EVAL_FREQ_DEFAULT = 100
 # Directory in which cifar data is saved
 DATA_DIR_DEFAULT = './cifar10/cifar-10-batches-py'
 
+# Custom constants
+N_INPUTS = 3072
+N_CLASSES = 10
+EPOCHS_DEFAULT = 5
+
 FLAGS = None
 
+
 def accuracy(predictions, targets):
-  """
-  Computes the prediction accuracy, i.e. the average of correct predictions
-  of the network.
-  
-  Args:
-    predictions: 2D float array of size [batch_size, n_classes]
-    labels: 2D int array of size [batch_size, n_classes]
-            with one-hot encoding. Ground truth labels for
-            each sample in the batch
-  Returns:
-    accuracy: scalar float, the accuracy of predictions,
-              i.e. the average correct predictions over the whole batch
-  
-  TODO:
-  Implement accuracy computation.
-  """
+    """
+    Computes the prediction accuracy, i.e. the average of correct predictions
+    of the network.
 
-  ########################
-  # PUT YOUR CODE HERE  #
-  #######################
-  raise NotImplementedError
-  ########################
-  # END OF YOUR CODE    #
-  #######################
+    Args:
+      predictions: 2D float array of size [batch_size, n_classes]
+      labels: 2D int array of size [batch_size, n_classes]
+              with one-hot encoding. Ground truth labels for
+              each sample in the batch
+    Returns:
+      accuracy: scalar float, the accuracy of predictions,
+                i.e. the average correct predictions over the whole batch
+    """
+    acc = (predictions == targets).sum()
 
-  return accuracy
+    return acc
 
-def train():
-  """
-  Performs training and evaluation of MLP model. 
 
-  TODO:
-  Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
-  """
+def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT):
+    """
+    Performs training and evaluation of MLP model.
 
-  ### DO NOT CHANGE SEEDS!
-  # Set the random seeds for reproducibility
-  np.random.seed(42)
+    TODO:
+    Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
+    """
 
-  ## Prepare all functions
-  # Get number of units in each hidden layer specified in the string such as 100,100
-  if FLAGS.dnn_hidden_units:
-    dnn_hidden_units = FLAGS.dnn_hidden_units.split(",")
-    dnn_hidden_units = [int(dnn_hidden_unit_) for dnn_hidden_unit_ in dnn_hidden_units]
-  else:
-    dnn_hidden_units = []
+    ### DO NOT CHANGE SEEDS!
+    # Set the random seeds for reproducibility
+    np.random.seed(42)
 
-  ########################
-  # PUT YOUR CODE HERE  #
-  #######################
-  raise NotImplementedError
-  ########################
-  # END OF YOUR CODE    #
-  #######################
+    ## Prepare all functions
+    # Get number of units in each hidden layer specified in the string such as 100,100
+    if FLAGS.dnn_hidden_units:
+        dnn_hidden_units = FLAGS.dnn_hidden_units.split(",")
+        dnn_hidden_units = [int(dnn_hidden_unit_) for dnn_hidden_unit_ in dnn_hidden_units]
+    else:
+        dnn_hidden_units = []
+
+    # Prepare data
+    cifar10 = cifar10_utils.get_cifar10()
+    train_set = cifar10["train"]
+
+    # Initialize model
+    nn = MLP(n_inputs=N_INPUTS, n_hidden=dnn_hidden_units, n_classes=N_CLASSES)
+    loss_func = CrossEntropyModule()
+
+    while train_set.epochs_completed < epochs:
+        x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
+        x = x.reshape(batch_size, 32 * 32 * 3)
+
+        # Forward pass and loss
+        out = nn.forward(x)
+        loss = loss_func.forward(out, y)
+
+        # Backward pass
+        loss_gradient = loss_func.backward(out, y)
+        nn.backward(loss_gradient)
+
 
 def print_flags():
-  """
-  Prints all entries in FLAGS variable.
-  """
-  for key, value in vars(FLAGS).items():
-    print(key + ' : ' + str(value))
+    """
+    Prints all entries in FLAGS variable.
+    """
+    for key, value in vars(FLAGS).items():
+        print(key + ' : ' + str(value))
+
 
 def main():
-  """
-  Main function
-  """
-  # Print all Flags to confirm parameter settings
-  print_flags()
+    """
+    Main function
+    """
+    # Print all Flags to confirm parameter settings
+    print_flags()
 
-  if not os.path.exists(FLAGS.data_dir):
-    os.makedirs(FLAGS.data_dir)
+    if not os.path.exists(FLAGS.data_dir):
+        os.makedirs(FLAGS.data_dir)
 
-  # Run the training operation
-  train()
+    # Run the training operation
+    train()
+
 
 if __name__ == '__main__':
-  # Command line arguments
-  parser = argparse.ArgumentParser()
-  parser.add_argument('--dnn_hidden_units', type = str, default = DNN_HIDDEN_UNITS_DEFAULT,
-                      help='Comma separated list of number of units in each hidden layer')
-  parser.add_argument('--learning_rate', type = float, default = LEARNING_RATE_DEFAULT,
-                      help='Learning rate')
-  parser.add_argument('--max_steps', type = int, default = MAX_STEPS_DEFAULT,
-                      help='Number of steps to run trainer.')
-  parser.add_argument('--batch_size', type = int, default = BATCH_SIZE_DEFAULT,
-                      help='Batch size to run trainer.')
-  parser.add_argument('--eval_freq', type=int, default=EVAL_FREQ_DEFAULT,
+    # Command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dnn_hidden_units', type=str, default=DNN_HIDDEN_UNITS_DEFAULT,
+                        help='Comma separated list of number of units in each hidden layer')
+    parser.add_argument('--learning_rate', type=float, default=LEARNING_RATE_DEFAULT,
+                        help='Learning rate')
+    parser.add_argument('--max_steps', type=int, default=MAX_STEPS_DEFAULT,
+                        help='Number of steps to run trainer.')
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE_DEFAULT,
+                        help='Batch size to run trainer.')
+    parser.add_argument('--eval_freq', type=int, default=EVAL_FREQ_DEFAULT,
                         help='Frequency of evaluation on the test set')
-  parser.add_argument('--data_dir', type = str, default = DATA_DIR_DEFAULT,
-                      help='Directory for storing input data')
-  FLAGS, unparsed = parser.parse_known_args()
+    parser.add_argument('--data_dir', type=str, default=DATA_DIR_DEFAULT,
+                        help='Directory for storing input data')
+    FLAGS, unparsed = parser.parse_known_args()
 
-  main()
+    main()

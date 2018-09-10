@@ -34,7 +34,7 @@ class LinearModule(object):
       out: output of the module
     """
     self.x = x
-    out = self.params["weight"] @ x + self.params["bias"]
+    out = x @ self.params["weight"] + self.params["bias"]
 
     return out
 
@@ -46,10 +46,6 @@ class LinearModule(object):
       dout: gradients of the previous module
     Returns:
       dx: gradients with respect to the input of the module
-    
-    TODO:
-    Implement backward pass of the module. Store gradient of the loss with respect to 
-    layer parameters in self.grads['weight'] and self.grads['bias']. 
     """
     self.grads["weights"] = self.x
     self.grads["bias"] = np.ones(self.out_features)
@@ -132,7 +128,7 @@ class SoftMaxModule(object):
     gradients = - out.T @ out
     # Add x_i^(N) where i = j
     gradients += np.diag(out)
-    dx = dout * gradients
+    dx = dout @ gradients
 
     return dx
 
@@ -151,7 +147,7 @@ class CrossEntropyModule(object):
     Returns:
       out: cross entropy loss
     """
-    out = - np.dot(np.log(x), y)
+    out = - np.multiply(np.log(x), y).sum(axis=1)
 
     return out
 

@@ -33,8 +33,9 @@ class MLP(object):
     self.input_layer = modules.LinearModule(n_inputs, n_classes if len(n_hidden) == 0 else n_hidden[0])
     self.hidden_layers = []
 
-    for layer, current_hidden in enumerate(n_hidden + n_classes):
-        self.hidden_layers.append(modules.LinearModule(current_hidden, n_hidden[layer + 1]))
+    layer_sizes = n_hidden + [n_classes]
+    for layer, next_hidden in list(enumerate(layer_sizes))[1:]:
+        self.hidden_layers.append(modules.LinearModule(layer_sizes[layer - 1], next_hidden))
 
     self.output_layer = modules.SoftMaxModule()
 
