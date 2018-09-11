@@ -164,7 +164,8 @@ class CrossEntropyModule(object):
         Returns:
           out: cross entropy loss
         """
-        out = - np.multiply(np.log(x), y).sum(axis=1)
+        out = - (np.log(x) * y).sum(axis=1)
+        out = out.mean()  # Divide by unit test
 
         return out
 
@@ -179,10 +180,6 @@ class CrossEntropyModule(object):
           dx: gradient of the loss with the respect to the input x.
         """
         dx = - y / x
-
-        # average batch loss gradients if necessary
-        if dx.shape[0] != 1:
-            dx = dx.mean(axis=0)
-            dx = dx[np.newaxis, ...]
+        dx = dx / x.shape[0]  # Divide by batch size
 
         return dx
