@@ -31,11 +31,15 @@ class MLP(object):
                  output dimensions of the MLP
     """
     self.input_layer = modules.LinearModule(n_inputs, n_classes if len(n_hidden) == 0 else n_hidden[0])
-    self.hidden_layers = []
+    self.hidden_layers = [modules.ReLUModule()]
 
+    # TODO: Make this more pretty
     layer_sizes = n_hidden + [n_classes]
     for layer, next_hidden in list(enumerate(layer_sizes))[1:]:
         self.hidden_layers.append(modules.LinearModule(layer_sizes[layer - 1], next_hidden))
+
+        if layer != len(layer_sizes) - 1:
+          self.hidden_layers.append(modules.ReLUModule())
 
     self.output_layer = modules.SoftMaxModule()
 
@@ -67,9 +71,12 @@ class MLP(object):
     """
     dout = self.output_layer.backward(dout)
 
-    for hidden_layer in self.hidden_layers:
+    for hidden_layer in self.hidden_layers[::-1]:
         dout = hidden_layer.backward(dout)
 
     dout = self.input_layer.backward(dout)
 
     return dout
+
+  import torch
+  torch.nn.Linear

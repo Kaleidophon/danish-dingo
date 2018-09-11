@@ -47,9 +47,9 @@ class LinearModule(object):
     Returns:
       dx: gradients with respect to the input of the module
     """
-    self.grads["weights"] = self.x
-    self.grads["bias"] = np.ones(self.out_features)
-    dx = self.grads["weights"] * dout
+    self.grads["weight"] = self.x.T @ dout
+    self.grads["bias"] = dout
+    dx = dout @ self.params["weight"].T
 
     return dx
 
@@ -58,6 +58,9 @@ class ReLUModule(object):
   """
   ReLU activation module.
   """
+  def __init__(self):
+    self.x = None
+
   def forward(self, x):
     """
     Forward pass.
@@ -67,7 +70,8 @@ class ReLUModule(object):
     Returns:
       out: output of the module
     """
-    out = np.maximum(np.zeros(x.shape[0]), x)
+    self.x = x
+    out = np.maximum(np.zeros(x.shape), x)
 
     return out
 
@@ -80,7 +84,7 @@ class ReLUModule(object):
     Returns:
       dx: gradients with respect to the input of the module
     """
-    dx = dout
+    dx = dout * (self.x > 0).astype(int)
 
     return dx
 
@@ -128,7 +132,7 @@ class SoftMaxModule(object):
     gradients = - out.T @ out
     # Add x_i^(N) where i = j
     gradients += np.diag(out)
-    dx = dout @ gradients
+    dx = gradients @ dout.T
 
     return dx
 
@@ -162,5 +166,10 @@ class CrossEntropyModule(object):
       dx: gradient of the loss with the respect to the input x.
     """
     dx = - y / x
+
+    # average batch loss gradients if necessary
+    if dx.shape[0] != 1:
+      dx = dx.mean(axis=0)
+      dx = dx[np.newaxis, ...]
 
     return dx
