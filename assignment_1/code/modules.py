@@ -124,7 +124,6 @@ class SoftMaxModule(object):
         z = x.max(axis=1, keepdims=True)
         z = np.repeat(z, x.shape[1], axis=1)
         out = np.exp(x - z) / np.exp(x - z).sum(axis=1, keepdims=True)
-        test = out.sum(axis=1)  # TODO: Remove, just test if softmax adds up to 1
         return out
 
     def backward(self, dout):
@@ -137,18 +136,6 @@ class SoftMaxModule(object):
           dx: gradients with respect to the input of the module
         """
         out = self.softmax(self.x)
-        # dx = np.empty((0, out.shape[1]))
-        #
-        # # TODO: Make function work without any loops whatsoever
-        # for batch_instance, dout_ in zip(out, dout):
-        #     # Perform batch-wise matrix multiplcation - numpy doesn't have bmm like PyTorch
-        #     diag = np.diag(batch_instance)
-        #     batch_instance = batch_instance[np.newaxis, ...]
-        #     gradient = - batch_instance.T @ batch_instance
-        #     # Add x_i^(N) where i = j
-        #     gradient += diag
-        #     gradient = (gradient @ dout_.T)[np.newaxis, ...]
-        #     dx = np.concatenate((dx, gradient), axis=0)
 
         # Other approach with einsum
         # b: batch size

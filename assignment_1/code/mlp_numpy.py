@@ -30,21 +30,16 @@ class MLP(object):
                      This number is required in order to specify the
                      output dimensions of the MLP
         """
-        self.input_layer = modules.LinearModule(n_inputs, n_classes if len(n_hidden) == 0 else n_hidden[0])
-        self.hidden_layers = [modules.ReLUModule()]
-        self.learned_modules = [self.input_layer]
+        if len(n_hidden) == 0:
+            self.layers = [modules.LinearModule(n_inputs, n_classes)]
+        else:
+            self.layers = [modules.LinearModule(n_inputs, n_hidden[0])]
 
-        # TODO: Make this more pretty
-        layer_sizes = n_hidden + [n_classes]
-        for layer, next_hidden in list(enumerate(layer_sizes))[1:]:
-            linear = modules.LinearModule(layer_sizes[layer - 1], next_hidden)
-            self.hidden_layers.append(linear)
-            self.learned_modules.append(linear)
+            for layer, next_hidden in list(enumerate(n_hidden + [n_classes]))[1:]:
+                self.layers.append(modules.ReLUModule())
+                self.layers.append(modules.LinearModule(n_hidden[layer - 1], next_hidden))
 
-            if layer != len(layer_sizes) - 1:
-                self.hidden_layers.append(modules.ReLUModule())
-
-        self.output_layer = modules.SoftMaxModule()
+        self.layers.append(modules.SoftMaxModule())
 
     def forward(self, x):
         """
@@ -56,12 +51,10 @@ class MLP(object):
         Returns:
           out: outputs of the network
         """
-        out = self.input_layer.forward(x)
+        out = x
 
-        for hidden_layer in self.hidden_layers:
-            out = hidden_layer.forward(out)
-
-        out = self.output_layer.forward(out)
+        for layer in self.layers:
+            out = layer.forward(out)
 
         return out
 
@@ -72,11 +65,7 @@ class MLP(object):
         Args:
           dout: gradients of the loss
         """
-        dout = self.output_layer.backward(dout)
-
-        for hidden_layer in self.hidden_layers[::-1]:
-            dout = hidden_layer.backward(dout)
-
-        dout = self.input_layer.backward(dout)
+        for layer in self.layers[::-1]:
+            dout = layer.backward(dout)
 
         return dout

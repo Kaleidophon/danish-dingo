@@ -10,7 +10,7 @@ import argparse
 import numpy as np
 import os
 from mlp_numpy import MLP
-from modules import CrossEntropyModule
+from modules import CrossEntropyModule, LinearModule
 import cifar10_utils
 
 from operator import mul
@@ -29,7 +29,7 @@ DATA_DIR_DEFAULT = './cifar10/cifar-10-batches-py'
 # Custom constants
 N_INPUTS = 3072
 N_CLASSES = 10
-EPOCHS_DEFAULT = 5
+EPOCHS_DEFAULT = 10
 
 FLAGS = None
 
@@ -58,11 +58,7 @@ def accuracy(predictions, targets):
 def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LEARNING_RATE_DEFAULT):
     """
     Performs training and evaluation of MLP model.
-
-    TODO:
-    Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
     """
-
     ### DO NOT CHANGE SEEDS!
     # Set the random seeds for reproducibility
     np.random.seed(42)
@@ -90,13 +86,9 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
     batch_nr_total = 1
     test_predictions = nn.forward(x_test)
     acc = accuracy(test_predictions, y_test)
+    x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
 
     while completed_epochs < epochs:
-        x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
-
-        if train_set.epochs_completed > completed_epochs:
-            print("")
-            batch_nr = 1
 
         x = x.reshape(batch_size, reduce(mul, x_test.shape[1:]))
 
@@ -109,8 +101,9 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
         nn.backward(loss_gradient)
 
         # Adjust parameters
-        for module in nn.learned_modules:
-            module.update_parameters(learning_rate)
+        for layer in nn.layers:
+            if isinstance(layer, LinearModule):
+                layer.update_parameters(learning_rate)
 
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
@@ -124,8 +117,16 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
 
         # Prepare for next iteration
         completed_epochs = train_set.epochs_completed
-        batch_nr += 1
+        x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
         batch_nr_total += 1
+
+        # Reset batch counter if a new epoch has started
+        if train_set.epochs_completed > completed_epochs:
+            print("")
+            batch_nr = 1
+            completed_epochs = train_set.epochs_completed
+        else:
+            batch_nr += 1
 
 
 def print_flags():
