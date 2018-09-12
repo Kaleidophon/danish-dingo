@@ -30,7 +30,6 @@ DATA_DIR_DEFAULT = './cifar10/cifar-10-batches-py'
 N_INPUTS = 3072
 N_CLASSES = 10
 EPOCHS_DEFAULT = 5
-LR_DEFAULT = 0.01
 
 FLAGS = None
 
@@ -56,7 +55,7 @@ def accuracy(predictions, targets):
     return acc
 
 
-def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR_DEFAULT):
+def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LEARNING_RATE_DEFAULT):
     """
     Performs training and evaluation of MLP model.
 
@@ -88,14 +87,18 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR
     loss_func = CrossEntropyModule()
     completed_epochs = 0
     batch_nr = 1
+    batch_nr_total = 1
+    test_predictions = nn.forward(x_test)
+    acc = accuracy(test_predictions, y_test)
 
     while completed_epochs < epochs:
         x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
 
         if train_set.epochs_completed > completed_epochs:
+            print("")
             batch_nr = 1
 
-        x = x.reshape(batch_size, 32 * 32 * 3)
+        x = x.reshape(batch_size, reduce(mul, x_test.shape[1:]))
 
         # Forward pass and loss
         out = nn.forward(x)
@@ -108,19 +111,21 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR
         # Adjust parameters
         for module in nn.learned_modules:
             module.update_parameters(learning_rate)
-            print("Weight norm: {:.4f}".format(np.linalg.norm(module.params["weight"])))
 
         # Compute accuracy, print loss
-        test_predictions = nn.forward(x_test)
-        acc = accuracy(test_predictions, y_test)
-        print("[Epoch {}/{} | Batch #{}] Loss: {:.2f} | Accuracy: {:.2f}".format(
+        if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
+            test_predictions = nn.forward(x_test)
+            acc = accuracy(test_predictions, y_test)
+
+        print("\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
                 completed_epochs + 1, epochs, batch_nr, loss, acc
-            )
+            ), end="", flush=True
         )
 
         # Prepare for next iteration
         completed_epochs = train_set.epochs_completed
         batch_nr += 1
+        batch_nr_total += 1
 
 
 def print_flags():
