@@ -50,10 +50,14 @@ class LinearModule(object):
           dx: gradients with respect to the input of the module
         """
         self.grads["weight"] = self.x.T @ dout
-        self.grads["bias"] = dout
+        self.grads["bias"] = dout.mean(axis=0)
         dx = dout @ self.params["weight"].T
 
         return dx
+
+    def update_parameters(self, learning_rate):
+        self.params["weight"] -= learning_rate * self.grads["weight"]
+        self.params["bias"] -= learning_rate * self.grads["bias"]
 
 
 class ReLUModule(object):
@@ -111,16 +115,16 @@ class SoftMaxModule(object):
           out: output of the module                                                        #
         """
         self.x = x
-        self.dim = x.shape[0]
         out = self.softmax(x)
 
         return out
 
     @staticmethod
     def softmax(x):
-        z = x.max(axis=1)[..., np.newaxis]
+        z = x.max(axis=1, keepdims=True)
         z = np.repeat(z, x.shape[1], axis=1)
-        out = np.exp(x - z) / np.exp(x - z).sum(axis=1)[..., np.newaxis]
+        out = np.exp(x - z) / np.exp(x - z).sum(axis=1, keepdims=True)
+        test = out.sum(axis=1)  # TODO: Remove, just test if softmax adds up to 1
         return out
 
     def backward(self, dout):
@@ -164,8 +168,10 @@ class CrossEntropyModule(object):
         Returns:
           out: cross entropy loss
         """
+        epsilon = 1e-10
+        x[x == 0] = epsilon
         out = - (np.log(x) * y).sum(axis=1)
-        out = out.mean()  # Divide by unit test
+        out = out.mean()  # Divide by batch size
 
         return out
 
