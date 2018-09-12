@@ -137,18 +137,34 @@ class SoftMaxModule(object):
           dx: gradients with respect to the input of the module
         """
         out = self.softmax(self.x)
-        dx = np.empty((0, out.shape[1]))
+        # dx = np.empty((0, out.shape[1]))
+        #
+        # # TODO: Make function work without any loops whatsoever
+        # for batch_instance, dout_ in zip(out, dout):
+        #     # Perform batch-wise matrix multiplcation - numpy doesn't have bmm like PyTorch
+        #     diag = np.diag(batch_instance)
+        #     batch_instance = batch_instance[np.newaxis, ...]
+        #     gradient = - batch_instance.T @ batch_instance
+        #     # Add x_i^(N) where i = j
+        #     gradient += diag
+        #     gradient = (gradient @ dout_.T)[np.newaxis, ...]
+        #     dx = np.concatenate((dx, gradient), axis=0)
 
-        # TODO: Make function work without any loops whatsoever
-        for batch_instance, dout_ in zip(out, dout):
-            # Perform batch-wise matrix multiplcation - numpy doesn't have bmm like PyTorch
-            diag = np.diag(batch_instance)
-            batch_instance = batch_instance[np.newaxis, ...]
-            gradient = - batch_instance.T @ batch_instance
-            # Add x_i^(N) where i = j
-            gradient += diag
-            gradient = (gradient @ dout_.T)[np.newaxis, ...]
-            dx = np.concatenate((dx, gradient), axis=0)
+        # Other approach with einsum
+        # b: batch size
+        # c: number of output classes
+
+        # Create matrix of softmax values per batch instance b x c, b x c -> b x c x c
+        gradient = - np.einsum("ij, ik -> ijk", out, out)
+
+        # Create diagonals of softmax values per batch instance where i = j which will be added to previous matrices
+        diagonals = np.apply_along_axis(np.diag, axis=1, arr=out)  # b x c x c where c x c are diagonal matrices
+        gradient += diagonals
+        dout = dout[..., np.newaxis]  # b x c -> b x c x 1
+
+        # Create gradients using previous loss
+        # b x c x c, b x c x 1 -> b x c x 1 -> b x c
+        dx = np.einsum("ijk, ikl -> ijl", gradient, dout).squeeze(axis=2)
 
         return dx
 

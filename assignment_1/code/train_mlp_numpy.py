@@ -13,6 +13,9 @@ from mlp_numpy import MLP
 from modules import CrossEntropyModule
 import cifar10_utils
 
+from operator import mul
+from functools import reduce
+
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 2e-3
@@ -76,6 +79,9 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR
     # Prepare data
     cifar10 = cifar10_utils.get_cifar10()
     train_set = cifar10["train"]
+    test_set = cifar10["test"]
+    x_test, y_test = test_set.images, test_set.labels
+    x_test = x_test.reshape(x_test.shape[0], reduce(mul, x_test.shape[1:]))
 
     # Initialize model
     nn = MLP(n_inputs=N_INPUTS, n_hidden=dnn_hidden_units, n_classes=N_CLASSES)
@@ -94,11 +100,6 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR
         # Forward pass and loss
         out = nn.forward(x)
         loss = loss_func.forward(out, y)
-        acc = accuracy(out, y)
-        print("[Epoch {}/{} | Batch #{}] Loss: {:.2f} | Accuracy: {:.2f}".format(
-                completed_epochs + 1, epochs, batch_nr, loss, acc
-            )
-        )
 
         # Backward pass
         loss_gradient = loss_func.backward(out, y)
@@ -108,6 +109,14 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LR
         for module in nn.learned_modules:
             module.update_parameters(learning_rate)
             print("Weight norm: {:.4f}".format(np.linalg.norm(module.params["weight"])))
+
+        # Compute accuracy, print loss
+        test_predictions = nn.forward(x_test)
+        acc = accuracy(test_predictions, y_test)
+        print("[Epoch {}/{} | Batch #{}] Loss: {:.2f} | Accuracy: {:.2f}".format(
+                completed_epochs + 1, epochs, batch_nr, loss, acc
+            )
+        )
 
         # Prepare for next iteration
         completed_epochs = train_set.epochs_completed
