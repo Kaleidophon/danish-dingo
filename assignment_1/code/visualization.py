@@ -8,17 +8,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plot_losses(batch_losses, epoch_losses):
+def plot_losses(batch_losses, epoch_losses, real_average=False):
     """
     Plot the training losses per batch / epoch jointly in one plot.
     """
     batch_size = int(len(batch_losses) / len(epoch_losses))
     epoch_losses = [batch_losses[0]] + epoch_losses  # Add first ever loss for visual ease
 
-    # Interpolate epoch losses within epochs
-    smoothed_axis = np.array(range(len(batch_losses)))
-    points_with_data = np.array(range(len(epoch_losses))) * batch_size
-    smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=5)
+    if real_average:
+        # Calculate real average loss at every step
+        smoothed_epoch_losses = []
+
+        for batch_index in range(1, len(batch_losses)):
+            smoothed_epoch_losses.append(sum(batch_losses[:batch_index]) / batch_index)
+    else:
+        # Interpolate epoch losses within epochs
+        smoothed_axis = np.array(range(len(batch_losses)))
+        points_with_data = np.array(range(len(epoch_losses))) * batch_size
+        smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=5)
+
+        if len(smoothed_epoch_losses) < len(smoothed_axis):
+            smoothed_epoch_losses += smoothed_epoch_losses[-1]
 
     # Plot
     plt.plot(batch_losses, color="lightblue", label="Batch Loss")

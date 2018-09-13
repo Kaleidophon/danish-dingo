@@ -54,14 +54,12 @@ def accuracy(predictions, targets):
 def train():
     """
     Performs training and evaluation of MLP model.
-
-    TODO:
-    Implement training and evaluation of MLP model. Evaluate your model on the whole test set each eval_freq iterations.
     """
 
     ### DO NOT CHANGE SEEDS!
     # Set the random seeds for reproducibility
     np.random.seed(42)
+    torch.manual_seed(42)
 
     ## Prepare all functions
     # Get number of units in each hidden layer specified in the string such as 100,100
@@ -138,15 +136,15 @@ def train():
         # Reset batch counter if a new epoch has started
         if train_set.epochs_completed > completed_epochs:
             print("")
-            batch_nr = 0
-            completed_epochs = train_set.epochs_completed
+            batch_nr = 1
             epoch_losses.append(sum(current_epoch_losses) / len(current_epoch_losses))
             current_epoch_losses = []
         else:
             batch_nr += 1
 
-    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses)
+    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, real_average=False)
     plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT)
+
 
 def print_flags():
     """
