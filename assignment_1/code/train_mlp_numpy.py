@@ -16,6 +16,8 @@ import cifar10_utils
 from operator import mul
 from functools import reduce
 
+from visualization import plot_losses, plot_accuracy
+
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
 LEARNING_RATE_DEFAULT = 2e-3
@@ -55,7 +57,8 @@ def accuracy(predictions, targets):
     return acc
 
 
-def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LEARNING_RATE_DEFAULT):
+def train(max_steps=MAX_STEPS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LEARNING_RATE_DEFAULT,
+          eval_interval=EVAL_FREQ_DEFAULT):
     """
     Performs training and evaluation of MLP model.
     """
@@ -88,6 +91,15 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
     acc = accuracy(test_predictions, y_test)
     x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
 
+    # Initialize data collection
+    batch_losses = []
+    current_epoch_losses = []
+    epoch_losses = []
+    all_accuracies = []
+
+    num_batches = int(np.ceil(train_set.images.shape[0]) / batch_size)  # Number of batches per epoch
+    epochs = int(np.floor(max_steps / num_batches))
+
     while completed_epochs < epochs:
 
         x = x.reshape(batch_size, reduce(mul, x_test.shape[1:]))
@@ -95,6 +107,8 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
         # Forward pass and loss
         out = nn.forward(x)
         loss = loss_func.forward(out, y)
+        batch_losses.append(loss)
+        current_epoch_losses.append(loss)
 
         # Backward pass
         loss_gradient = loss_func.backward(out, y)
@@ -109,6 +123,7 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
             test_predictions = nn.forward(x_test)
             acc = accuracy(test_predictions, y_test)
+            all_accuracies.append(acc)
 
         print("\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
                 completed_epochs + 1, epochs, batch_nr, loss, acc
@@ -125,8 +140,13 @@ def train(epochs=EPOCHS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_rate=LE
             print("")
             batch_nr = 1
             completed_epochs = train_set.epochs_completed
+            epoch_losses.append(sum(current_epoch_losses) / len(current_epoch_losses))
+            current_epoch_losses = []
         else:
             batch_nr += 1
+
+    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses)
+    plot_accuracy(all_accuracies, eval_interval)
 
 
 def print_flags():
