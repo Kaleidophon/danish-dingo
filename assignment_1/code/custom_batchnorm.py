@@ -52,7 +52,7 @@ class CustomBatchNormAutograd(nn.Module):
         mu = mu.repeat(batch_size, 1)
 
         # 2. Compute variance
-        sigma = input.var(dim=0).unsqueeze(0)
+        sigma = input.var(dim=0, unbiased=False).unsqueeze(0)
         sigma = sigma.repeat(batch_size, 1)
 
         # 3. Normalize
@@ -106,14 +106,26 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
           for the backward pass. Do not store tensors which are unnecessary for the backward pass to save memory!
           For the case that you make use of torch.var be aware that the flag unbiased=False should be set.
         """
+        batch_size = input.shape[0]
 
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        # 1. Compute mean
+        mu = input.mean(dim=0).unsqueeze(0)
+        mu = mu.repeat(batch_size, 1)
+
+        # 2. Compute variance
+        sigma = input.var(dim=0, unbiased=False).unsqueeze(0)
+        sigma = sigma.repeat(batch_size, 1)
+
+        # 3. Normalize
+        normalized = (input - mu) / torch.sqrt(sigma + eps)
+
+        # 4. Scale and shift
+        out = normalized * gamma.repeat(batch_size, 1)
+        out += beta.repeat(batch_size, 1)
+
+        # Save for backward pass
+        ctx.save_for_backward(input, gamma, beta, sigma, normalized)
+        ctx.constant = eps
 
         return out
 
@@ -133,14 +145,20 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
           Compute gradients for inputs where ctx.needs_input_grad[idx] is True. Set gradients for other
           inputs to None. This should be decided dynamically.
         """
+        # Retrieve stored tensors
+        eps = ctx.constant
+        input, gamma, beta, sigma, x_hat = ctx.saved_tensors
+        batch_size = input.shape[0]
 
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        # Gradient w.r.t. gamma
+        grad_gamma = (x_hat * grad_output).sum(dim=0)
+
+        # Gradient w.r.t. beta
+        grad_beta = grad_output.sum(dim=0)
+
+        # Gradient w.r.t. input
+        grad_input = (gamma * (sigma + eps)**(-1/2) / batch_size)
+        grad_input *= (batch_size * grad_output - x_hat * grad_gamma - grad_beta)
 
         # return gradients of the three tensor inputs and None for the constant eps
         return grad_input, grad_gamma, grad_beta, None
@@ -164,20 +182,14 @@ class CustomBatchNormManualModule(nn.Module):
         Args:
           n_neurons: int specifying the number of neurons
           eps: small float to be added to the variance for stability
-
-        TODO:
-          Save parameters for the number of neurons and eps.
-          Initialize parameters gamma and beta via nn.Parameter
         """
         super(CustomBatchNormManualModule, self).__init__()
 
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        self.n_neurons = n_neurons
+        self.epsilon = eps
+
+        self.gamma = nn.Parameter(torch.ones(1, n_neurons))
+        self.beta = nn.Parameter(torch.zeros(1, n_neurons))
 
     def forward(self, input):
         """
@@ -187,19 +199,10 @@ class CustomBatchNormManualModule(nn.Module):
           input: input tensor of shape (n_batch, n_neurons)
         Returns:
           out: batch-normalized tensor
-
-        TODO:
-          Check for the correctness of the shape of the input tensor.
-          Instantiate a CustomBatchNormManualFunction.
-          Call it via its .apply() method.
         """
+        assert input.shape[1] == self.n_neurons
 
-        ########################
-        # PUT YOUR CODE HERE  #
-        #######################
-        raise NotImplementedError
-        ########################
-        # END OF YOUR CODE    #
-        #######################
+        custom_batch_norm_func = CustomBatchNormManualFunction()
+        normalized = custom_batch_norm_func.apply(input, self.gamma, self.beta, self.epsilon)
 
-        return out
+        return normalized

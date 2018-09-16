@@ -34,18 +34,29 @@ class MLP(nn.Module):
         super().__init__()
 
         if len(n_hidden) == 0:
-            self.layers = [nn.Linear(n_inputs, n_classes)]
+            self.layers = [self._create_linear(n_inputs, n_classes)]
         else:
-            self.layers = [nn.Linear(n_inputs, n_hidden[0])]
+            self.layers = [self._create_linear(n_inputs, n_hidden[0])]
 
             for layer_index, layer_size in list(enumerate(n_hidden + [n_classes]))[1:]:
                 self.layers.append(nn.ReLU())
-                self.layers.append(nn.Dropout(p=0.5))
-                self.layers.append(nn.Linear(n_hidden[layer_index-1], layer_size))
-
-            self.layers.append(nn.Softmax(dim=1))
+                self.layers.append(nn.Dropout(p=0.2))
+                self.layers.append(self._create_linear(n_hidden[layer_index - 1], layer_size))
 
         self.model = nn.Sequential(*self.layers)
+
+    @staticmethod
+    def _create_linear(*dims, custom_init=False):
+        """
+        Initialize weights and bias similar to the Numpy MLP.
+        """
+        linear = nn.Linear(*dims)
+
+        if custom_init:
+            linear.weight.data.normal_(mean=0, std=0.0001)
+            linear.bias.data.zero_()
+
+        return linear
 
     def forward(self, x):
         """

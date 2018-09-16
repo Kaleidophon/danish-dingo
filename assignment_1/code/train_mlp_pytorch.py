@@ -16,13 +16,14 @@ from operator import mul
 from functools import reduce
 import torch
 from torch import nn, optim
+from torch.autograd import Variable
 
 from visualization import plot_losses, plot_accuracy
 
 # Default constants
-DNN_HIDDEN_UNITS_DEFAULT = '100'
-LEARNING_RATE_DEFAULT = 2e-3
-MAX_STEPS_DEFAULT = 1500
+DNN_HIDDEN_UNITS_DEFAULT = '400,200'
+LEARNING_RATE_DEFAULT = 0.00004
+MAX_STEPS_DEFAULT = 6000
 BATCH_SIZE_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 100
 
@@ -47,8 +48,8 @@ def accuracy(predictions, targets):
                 i.e. the average correct predictions over the whole batch
     """
     accurate_predictions = predictions.argmax(dim=1) == targets.argmax(dim=1)
-    accuracy = float(accurate_predictions.double().mean(dim=0).numpy())
-    return accuracy
+    acc = float(accurate_predictions.float().mean(dim=0).numpy())
+    return acc
 
 
 def train():
@@ -85,7 +86,8 @@ def train():
 
     # Prepare for training
     loss_func = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    #optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    optimizer = optim.Adam(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
     batch_nr_total = 0
     test_predictions = mlp.forward(x_test)
     acc = accuracy(test_predictions, y_test)
@@ -103,10 +105,11 @@ def train():
 
         completed_epochs = train_set.epochs_completed
         x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
-        x = torch.Tensor(x.reshape(BATCH_SIZE_DEFAULT, reduce(mul, x_test.shape[1:])))
-        y = torch.LongTensor(y).argmax(dim=1)
+        x = Variable(torch.Tensor(x.reshape(BATCH_SIZE_DEFAULT, reduce(mul, x_test.shape[1:]))))
+        y = Variable(torch.LongTensor(y).argmax(dim=1))
 
         # Forward pass and loss
+        optimizer.zero_grad()
         out = mlp.forward(x)
         loss = loss_func(out, y)
         loss_ = float(loss.detach().numpy())
@@ -116,7 +119,6 @@ def train():
         # Backward pass, adjust parameters
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
 
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
