@@ -6,6 +6,7 @@ Visualizing and plotting results.
 from scipy.interpolate import spline
 import numpy as np
 import matplotlib.pyplot as plt
+import codecs
 
 
 def plot_losses(batch_losses, epoch_losses, real_average=False):
@@ -26,9 +27,6 @@ def plot_losses(batch_losses, epoch_losses, real_average=False):
         smoothed_axis = np.array(range(len(batch_losses)))
         points_with_data = np.array(range(len(epoch_losses))) * batch_size
         smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=5)
-
-        if len(smoothed_epoch_losses) < len(smoothed_axis):
-            smoothed_epoch_losses += smoothed_epoch_losses[-1]
 
     # Plot
     plt.plot(batch_losses, color="lightblue", label="Batch Loss")
@@ -54,3 +52,14 @@ def plot_accuracy(accuracies, eval_interval):
     plt.ylabel("Test Set Accuracy")
 
     plt.show()
+
+
+def write_data_to_file(data, path):
+    with codecs.open(path, "wb", "utf-8") as file:
+        for entry in data:
+            file.write("{}\n".format(entry))
+
+
+def read_data_from_file(path):
+    with codecs.open(path, "rb", "utf-8") as file:
+        return list(map(lambda l: float(l.strip()), file.readlines()))

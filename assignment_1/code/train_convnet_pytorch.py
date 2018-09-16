@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from operator import mul
 from functools import reduce
 
-from visualization import plot_losses, plot_accuracy
+from visualization import plot_losses, plot_accuracy, write_data_to_file
 
 # Default constants
 LEARNING_RATE_DEFAULT = 1e-4
@@ -136,8 +136,9 @@ def train():
         else:
             batch_nr += 1
 
-    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, real_average=False)
-    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT)
+    write_data_to_file(batch_losses, "./batch_losses.txt")
+    write_data_to_file(epoch_losses, "./epoch_losses.txt")
+    write_data_to_file(all_accuracies, "./accuracies.txt")
 
 
 def print_flags():
