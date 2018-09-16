@@ -9,6 +9,9 @@ from __future__ import print_function
 # EXT
 from torch import nn
 
+from operator import mul
+from functools import reduce
+
 
 class ConvNet(nn.Module):
     """
@@ -71,16 +74,17 @@ class ConvNet(nn.Module):
 
         # Output block
         self.avgpool = nn.AvgPool1d(kernel_size=1, stride=1)
-        self.linear = nn.Linear(512, n_classes)
+        self.linear = nn.Linear(512 * 32, n_classes)
 
-        self.model = nn.Sequential(
+        self.features = nn.Sequential(
             self.conv1, self.batchnorm1, self.relu1, self.maxpool1,
             self.conv2, self.batchnorm2, self.relu2, self.maxpool2,
             self.conv3_a, self.batchnorm3_a, self.relu3_a, self.conv3_b, self.batchnorm3_b, self.relu3_b, self.maxpool3,
             self.conv4_a, self.batchnorm4_a, self.relu4_a, self.conv4_b, self.batchnorm4_b, self.relu4_b, self.maxpool4,
             self.conv5_a, self.batchnorm5_a, self.relu5_a, self.conv5_b, self.batchnorm5_b, self.relu5_b, self.maxpool5,
-            self.avgpool, self.linear
+            self.avgpool
         )
+        self.classifier = self.linear
 
     def forward(self, x):
         """
@@ -92,6 +96,8 @@ class ConvNet(nn.Module):
         Returns:
           out: outputs of the network
         """
-        out = self.model(x)
+        feat = self.features(x)
+        feat = feat.view(feat.shape[0], reduce(mul, feat.shape[1:]))
+        out = self.classifier(feat)
 
         return out
