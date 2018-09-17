@@ -72,7 +72,7 @@ def train():
     x_test, y_test = test_set.images, test_set.labels
     n_channels = x_test.shape[1]
     n_classes = y_test.shape[1]
-    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], reduce(mul, x_test.shape[2:]))
+    #x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], reduce(mul, x_test.shape[2:]))
     x_test = torch.Tensor(x_test).type(dtype)
     y_test = torch.Tensor(y_test).argmax(dim=1).type(dtypel)
 
@@ -99,7 +99,7 @@ def train():
     while batch_nr_total < MAX_STEPS_DEFAULT:
         completed_epochs = train_set.epochs_completed
         x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
-        x = x.reshape(x.shape[0], x.shape[1], reduce(mul, x.shape[2:]))
+        #x = x.reshape(x.shape[0], x.shape[1], reduce(mul, x.shape[2:]))
         x = Variable(torch.Tensor(x).type(dtype))
         y = Variable(torch.Tensor(y).argmax(dim=1).type(dtypel))
         # Forward pass and loss
