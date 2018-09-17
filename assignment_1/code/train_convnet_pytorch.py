@@ -33,6 +33,8 @@ FLAGS = None
 
 # Determine if GPU is available
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+dtypel = torch.cuda.LongTensor if torch.cuda.is_available() else torch.LongTensor
 
 
 def accuracy(predictions, targets):
@@ -49,8 +51,8 @@ def accuracy(predictions, targets):
       accuracy: scalar float, the accuracy of predictions,
                 i.e. the average correct predictions over the whole batch
     """
-    accurate_predictions = predictions.argmax(dim=1) == targets.argmax(dim=1)
-    acc = float(accurate_predictions.float().mean(dim=0).numpy())
+    accurate_predictions = predictions.argmax(dim=1) == targets
+    acc = float(accurate_predictions.cpu().float().mean(dim=0).numpy())
     return acc
 
 
@@ -68,14 +70,14 @@ def train():
     train_set = cifar10["train"]
     test_set = cifar10["test"]
     x_test, y_test = test_set.images, test_set.labels
-    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], reduce(mul, x_test.shape[2:]))
-    x_test = torch.Tensor(x_test, device=device)
-    y_test = torch.Tensor(y_test, device=device)
-
-    # Initialize model
     n_channels = x_test.shape[1]
     n_classes = y_test.shape[1]
-    conv_net = ConvNet(n_channels, n_classes)
+    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], reduce(mul, x_test.shape[2:]))
+    x_test = torch.Tensor(x_test).type(dtype)
+    y_test = torch.Tensor(y_test).argmax(dim=1).type(dtypel)
+
+    # Initialize model
+    conv_net = ConvNet(n_channels, n_classes).to(device)
 
     # Prepare for training
     loss_func = nn.CrossEntropyLoss()
@@ -85,11 +87,12 @@ def train():
     acc = 0
     batch_nr = 0
     num_batches = int(np.ceil(train_set.images.shape[0]) / BATCH_SIZE_DEFAULT)  # Number of batches per epoch
-    epochs = int(np.floor(MAX_STEPS_DEFAULT / num_batches))
+    epochs = int(np.ceil(MAX_STEPS_DEFAULT / num_batches))
 
     # Initialize data collection
     batch_losses = []
     current_epoch_losses = []
+    test_losses = []
     epoch_losses = []
     all_accuracies = []
 
@@ -97,14 +100,13 @@ def train():
         completed_epochs = train_set.epochs_completed
         x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
         x = x.reshape(x.shape[0], x.shape[1], reduce(mul, x.shape[2:]))
-        x = Variable(torch.Tensor(x, device=device))
-        y = Variable(torch.LongTensor(y, device=device).argmax(dim=1))
-
+        x = Variable(torch.Tensor(x).type(dtype))
+        y = Variable(torch.Tensor(y).argmax(dim=1).type(dtypel))
         # Forward pass and loss
         optimizer.zero_grad()
-        out = conv_net.forward(x)
+        out = conv_net.forward(x).type(dtype)
         loss = loss_func(out, y)
-        loss_ = float(loss.detach().numpy())
+        loss_ = float(loss.cpu().detach().numpy())
         batch_losses.append(loss_)
         current_epoch_losses.append(loss_)
 
@@ -115,8 +117,11 @@ def train():
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
             with torch.no_grad():
-                test_predictions = conv_net.forward(x_test)
+                test_predictions = conv_net.forward(x_test).type(dtype)
                 acc = accuracy(test_predictions, y_test)
+                test_loss = loss_func(test_predictions, y_test)
+                test_loss = float(test_loss.cpu().detach().numpy())
+                test_losses.append(test_loss)
                 all_accuracies.append(acc)
 
         print("\r[Epoch {:>2}/{:>2} | Batch #{:>4}/{}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
@@ -136,9 +141,26 @@ def train():
         else:
             batch_nr += 1
 
+    test_predictions = conv_net.forward(x_test).type(dtype)
+    acc = accuracy(test_predictions, y_test)
+    test_loss = loss_func(test_predictions, y_test)
+    test_loss = float(test_loss.cpu().detach().numpy())
+    test_losses.append(test_loss)
+    all_accuracies.append(acc)
+    print("Training finished, final test accuracy is {:.4f}".format(acc))
+
     write_data_to_file(batch_losses, "./batch_losses.txt")
     write_data_to_file(epoch_losses, "./epoch_losses.txt")
     write_data_to_file(all_accuracies, "./accuracies.txt")
+
+
+def eval_model(model, loss_func, x_test, y_test):
+    test_predictions = model.forward(x_test).type(dtype)
+    acc = accuracy(test_predictions, y_test)
+    test_loss = loss_func(test_predictions, y_test)
+    test_loss = float(test_loss.cpu().detach().numpy())
+
+    return acc, test_loss
 
 
 def print_flags():
@@ -155,6 +177,7 @@ def main():
     """
     # Print all Flags to confirm parameter settings
     print_flags()
+    print("Device: {}".format(device))
 
     if not os.path.exists(FLAGS.data_dir):
         os.makedirs(FLAGS.data_dir)
