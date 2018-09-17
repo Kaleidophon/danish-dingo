@@ -40,7 +40,7 @@ class MLP(nn.Module):
 
             for layer_index, layer_size in list(enumerate(n_hidden + [n_classes]))[1:]:
                 self.layers.append(nn.ReLU())
-                self.layers.append(nn.Dropout(p=0.2))
+                #self.layers.append(nn.Dropout(p=0.2))
                 self.layers.append(self._create_linear(n_hidden[layer_index - 1], layer_size, custom_init))
 
         self.model = nn.Sequential(*self.layers)

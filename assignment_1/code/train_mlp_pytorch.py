@@ -150,7 +150,9 @@ def train():
     acc, test_loss = eval_model(mlp, loss_func, x_test, y_test)
     test_losses.append(test_loss)
     all_accuracies.append(acc)
-    print("\nTraining finished, final test accuracy is {:.4f}\n".format(acc))
+    print("\nTraining finished, final test accuracy is {:.4f}, maximum accuracy was {:.4f}.\n".format(
+        acc, max(all_accuracies))
+    )
 
     # Plotting
     plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, save_dont_show="./train_losses_mlp_pytorch.png")
