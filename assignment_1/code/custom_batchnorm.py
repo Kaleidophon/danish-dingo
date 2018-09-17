@@ -148,7 +148,7 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
         # Retrieve stored tensors
         eps = ctx.constant
         input, gamma, beta, sigma, x_hat = ctx.saved_tensors
-        batch_size = input.shape[0]
+        batch_size = input.shape[0]  # TODO: Use other
 
         # Gradient w.r.t. gamma
         grad_gamma = (x_hat * grad_output).sum(dim=0)

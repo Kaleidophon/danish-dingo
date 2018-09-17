@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from operator import mul
 from functools import reduce
 
-from visualization import plot_losses, plot_accuracy, write_data_to_file
+from visualization import plot_losses, plot_accuracy, write_data_to_file, plot_test_loss
 
 # Default constants
 LEARNING_RATE_DEFAULT = 1e-4
@@ -116,13 +116,9 @@ def train():
 
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
-            with torch.no_grad():
-                test_predictions = conv_net.forward(x_test).type(dtype)
-                acc = accuracy(test_predictions, y_test)
-                test_loss = loss_func(test_predictions, y_test)
-                test_loss = float(test_loss.cpu().detach().numpy())
-                test_losses.append(test_loss)
-                all_accuracies.append(acc)
+            acc, test_loss = eval_model(conv_net, loss_func, x_test, y_test)
+            test_losses.append(test_loss)
+            all_accuracies.append(acc)
 
         print("\r[Epoch {:>2}/{:>2} | Batch #{:>4}/{}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
             completed_epochs + 1, epochs, batch_nr, num_batches, loss_, acc
@@ -141,26 +137,38 @@ def train():
         else:
             batch_nr += 1
 
-    test_predictions = conv_net.forward(x_test).type(dtype)
-    acc = accuracy(test_predictions, y_test)
-    test_loss = loss_func(test_predictions, y_test)
-    test_loss = float(test_loss.cpu().detach().numpy())
+    acc, test_loss = eval_model(conv_net, loss_func, x_test, y_test)
     test_losses.append(test_loss)
     all_accuracies.append(acc)
-    print("Training finished, final test accuracy is {:.4f}".format(acc))
+    print("\nTraining finished, final test accuracy is {:.4f}\n".format(acc))
 
+    # Write to file just in case
     write_data_to_file(batch_losses, "./batch_losses.txt")
     write_data_to_file(epoch_losses, "./epoch_losses.txt")
+    write_data_to_file(test_losses, "./test_losses.txt")
     write_data_to_file(all_accuracies, "./accuracies.txt")
 
+    # Plot
+    plot_losses(batch_losses, epoch_losses, save_dont_show="./train_losses.png")
+    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT, save_dont_show="./accuracies.png")
+    plot_test_loss(test_losses, EVAL_FREQ_DEFAULT, save_dont_show="./test_losses.png")
 
-def eval_model(model, loss_func, x_test, y_test):
-    test_predictions = model.forward(x_test).type(dtype)
-    acc = accuracy(test_predictions, y_test)
-    test_loss = loss_func(test_predictions, y_test)
-    test_loss = float(test_loss.cpu().detach().numpy())
 
-    return acc, test_loss
+def eval_model(model, loss_func, x_test, y_test, batch_size=BATCH_SIZE_DEFAULT):
+    with torch.no_grad():
+        test_predictions = []
+
+        # Split to avoid memory errors -> Tensor with batch dimensionality of 10k might be too much
+        for test_batch in torch.split(x_test, batch_size, dim=0):
+            batch_predictions = model.forward(test_batch).type(dtype)
+            test_predictions.append(batch_predictions)
+
+        test_predictions = torch.cat(test_predictions, dim=0)
+        acc = accuracy(test_predictions, y_test)
+        test_loss = loss_func(test_predictions, y_test)
+        test_loss = float(test_loss.cpu().detach().numpy())
+
+        return acc, test_loss
 
 
 def print_flags():

@@ -3,13 +3,16 @@ Visualizing and plotting results.
 """
 
 # EXT
+import matplotlib
+matplotlib.use('Agg')  # Make it compatible with cluster
+
 from scipy.interpolate import spline
 import numpy as np
 import matplotlib.pyplot as plt
 import codecs
 
 
-def plot_losses(batch_losses, epoch_losses, real_average=False):
+def plot_losses(batch_losses, epoch_losses, real_average=False, save_dont_show=None):
     """
     Plot the training losses per batch / epoch jointly in one plot.
     """
@@ -26,7 +29,7 @@ def plot_losses(batch_losses, epoch_losses, real_average=False):
         # Interpolate epoch losses within epochs
         smoothed_axis = np.array(range(len(batch_losses)))
         points_with_data = np.array(range(len(epoch_losses))) * batch_size
-        smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=5)
+        smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=2)
 
     # Plot
     plt.plot(batch_losses, color="lightblue", label="Batch Loss")
@@ -38,10 +41,30 @@ def plot_losses(batch_losses, epoch_losses, real_average=False):
 
     plt.legend(loc="upper right")
 
-    plt.show()
+    if not save_dont_show:
+        plt.show()
+    else:
+        plt.savefig(save_dont_show)
+
+    plt.close()
 
 
-def plot_accuracy(accuracies, eval_interval):
+def plot_test_loss(losses, eval_interval, save_dont_show=None):
+    locs = np.array(range(0, len(losses))) * eval_interval
+    plt.plot(locs, losses, color="red")
+
+    plt.xlabel("# Batch")
+    plt.ylabel("Test Set Loss")
+
+    if not save_dont_show:
+        plt.show()
+    else:
+        plt.savefig(save_dont_show)
+
+    plt.close()
+
+
+def plot_accuracy(accuracies, eval_interval, save_dont_show=None):
     """
     Plot the test set accuracies per epoch during training.
     """
@@ -51,7 +74,12 @@ def plot_accuracy(accuracies, eval_interval):
     plt.xlabel("# Batch")
     plt.ylabel("Test Set Accuracy")
 
-    plt.show()
+    if not save_dont_show:
+        plt.show()
+    else:
+        plt.savefig(save_dont_show)
+
+    plt.close()
 
 
 def write_data_to_file(data, path):
