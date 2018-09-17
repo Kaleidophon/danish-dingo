@@ -12,24 +12,17 @@ import matplotlib.pyplot as plt
 import codecs
 
 
-def plot_losses(batch_losses, epoch_losses, real_average=False, save_dont_show=None):
+def plot_losses(batch_losses, epoch_losses, save_dont_show=None):
     """
     Plot the training losses per batch / epoch jointly in one plot.
     """
     batch_size = int(len(batch_losses) / len(epoch_losses))
     epoch_losses = [batch_losses[0]] + epoch_losses  # Add first ever loss for visual ease
 
-    if real_average:
-        # Calculate real average loss at every step
-        smoothed_epoch_losses = []
-
-        for batch_index in range(1, len(batch_losses)):
-            smoothed_epoch_losses.append(sum(batch_losses[:batch_index]) / batch_index)
-    else:
-        # Interpolate epoch losses within epochs
-        smoothed_axis = np.array(range(len(batch_losses)))
-        points_with_data = np.array(range(len(epoch_losses))) * batch_size
-        smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=2)
+    # Interpolate epoch losses within epochs
+    smoothed_axis = np.array(range(len(batch_losses)))
+    points_with_data = np.array(range(len(epoch_losses))) * batch_size
+    smoothed_epoch_losses = spline(points_with_data, epoch_losses, smoothed_axis, order=2)
 
     # Plot
     plt.plot(batch_losses, color="lightblue", label="Batch Loss")
@@ -41,12 +34,11 @@ def plot_losses(batch_losses, epoch_losses, real_average=False, save_dont_show=N
 
     plt.legend(loc="upper right")
 
-    if not save_dont_show:
+    if save_dont_show is None:
         plt.show()
     else:
         plt.savefig(save_dont_show)
-
-    plt.close()
+        plt.close()
 
 
 def plot_test_loss(losses, eval_interval, save_dont_show=None):
@@ -56,30 +48,31 @@ def plot_test_loss(losses, eval_interval, save_dont_show=None):
     plt.xlabel("# Batch")
     plt.ylabel("Test Set Loss")
 
-    if not save_dont_show:
+    if save_dont_show is None:
         plt.show()
     else:
         plt.savefig(save_dont_show)
+        plt.close()
 
-    plt.close()
 
-
-def plot_accuracy(accuracies, eval_interval, save_dont_show=None):
+def plot_accuracy(accuracies, eval_interval, save_dont_show=None, y_limits=None):
     """
     Plot the test set accuracies per epoch during training.
     """
     locs = np.array(range(0, len(accuracies))) * eval_interval
 
+    if y_limits is not None:
+        plt.ylim(*y_limits)
+
     plt.plot(locs, accuracies, color="orange")
     plt.xlabel("# Batch")
     plt.ylabel("Test Set Accuracy")
 
-    if not save_dont_show:
+    if save_dont_show is None:
         plt.show()
     else:
         plt.savefig(save_dont_show)
-
-    plt.close()
+        plt.close()
 
 
 def write_data_to_file(data, path):

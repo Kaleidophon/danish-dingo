@@ -131,7 +131,7 @@ def train():
         # Reset batch counter if a new epoch has started
         if train_set.epochs_completed > completed_epochs:
             print("")
-            batch_nr = 1
+            batch_nr = 0
             epoch_losses.append(sum(current_epoch_losses) / len(current_epoch_losses))
             current_epoch_losses = []
         else:
@@ -141,12 +141,6 @@ def train():
     test_losses.append(test_loss)
     all_accuracies.append(acc)
     print("\nTraining finished, final test accuracy is {:.4f}\n".format(acc))
-
-    # Write to file just in case
-    write_data_to_file(batch_losses, "./batch_losses.txt")
-    write_data_to_file(epoch_losses, "./epoch_losses.txt")
-    write_data_to_file(test_losses, "./test_losses.txt")
-    write_data_to_file(all_accuracies, "./accuracies.txt")
 
     # Plot
     plot_losses(batch_losses, epoch_losses, save_dont_show="./train_losses.png")

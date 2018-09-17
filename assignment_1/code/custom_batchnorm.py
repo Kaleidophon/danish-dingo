@@ -97,14 +97,6 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
           eps: small float added to the variance for stability
         Returns:
           out: batch-normalized tensor
-
-        TODO:
-          Implement the forward pass of batch normalization
-          Store constant non-tensor objects via ctx.constant=myconstant
-          Store tensors which you need in the backward pass via ctx.save_for_backward(tensor1, tensor2, ...)
-          Intermediate results can be decided to be either recomputed in the backward pass or to be stored
-          for the backward pass. Do not store tensors which are unnecessary for the backward pass to save memory!
-          For the case that you make use of torch.var be aware that the flag unbiased=False should be set.
         """
         batch_size = input.shape[0]
 
@@ -124,7 +116,7 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
         out += beta.repeat(batch_size, 1)
 
         # Save for backward pass
-        ctx.save_for_backward(input, gamma, beta, sigma, normalized)
+        ctx.save_for_backward(gamma, beta, sigma, normalized)
         ctx.constant = eps
 
         return out
@@ -135,7 +127,7 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
         Compute backward pass of the batch normalization.
 
         Args:
-          ctx: context object handling storing and retrival of tensors and constants and specifying
+          ctx: context object handling storing and retrieval of tensors and constants and specifying
                whether tensors need gradients in backward pass
         Returns:
           out: tuple containing gradients for all input arguments
@@ -146,9 +138,9 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
           inputs to None. This should be decided dynamically.
         """
         # Retrieve stored tensors
-        eps = ctx.constant
-        input, gamma, beta, sigma, x_hat = ctx.saved_tensors
-        batch_size = input.shape[0]  # TODO: Use other
+        epsilon = ctx.constant
+        gamma, beta, sigma, x_hat = ctx.saved_tensors
+        batch_size = x_hat.shape[0]
 
         # Gradient w.r.t. gamma
         grad_gamma = (x_hat * grad_output).sum(dim=0)
@@ -157,11 +149,17 @@ class CustomBatchNormManualFunction(torch.autograd.Function):
         grad_beta = grad_output.sum(dim=0)
 
         # Gradient w.r.t. input
-        grad_input = (gamma * (sigma + eps)**(-1/2) / batch_size)
-        grad_input *= (batch_size * grad_output - x_hat * grad_gamma - grad_beta)
+        grad_input = gamma * (sigma + epsilon)**(-1/2) / batch_size
+        grad_input *= batch_size * grad_output - x_hat * grad_gamma - grad_beta
+
+        # Return gradients, set gradient to None if ctx.needs_input_grad is False
+        return_grads = [
+            grad if ctx.needs_input_grad[i] else None
+            for i, grad in enumerate([grad_input, grad_gamma, grad_beta])
+        ]
 
         # return gradients of the three tensor inputs and None for the constant eps
-        return grad_input, grad_gamma, grad_beta, None
+        return tuple(return_grads + [None])
 
 
 ######################################################################################

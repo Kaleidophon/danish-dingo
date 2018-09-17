@@ -18,12 +18,12 @@ import torch
 from torch import nn, optim
 from torch.autograd import Variable
 
-from visualization import plot_losses, plot_accuracy
+from visualization import plot_losses, plot_accuracy, plot_test_loss
 
 # Default constants
-DNN_HIDDEN_UNITS_DEFAULT = '400,200'
-LEARNING_RATE_DEFAULT = 0.00004
-MAX_STEPS_DEFAULT = 6000
+DNN_HIDDEN_UNITS_DEFAULT = '100'
+LEARNING_RATE_DEFAULT = 2e-3
+MAX_STEPS_DEFAULT = 1500
 BATCH_SIZE_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 100
 
@@ -47,7 +47,7 @@ def accuracy(predictions, targets):
       accuracy: scalar float, the accuracy of predictions,
                 i.e. the average correct predictions over the whole batch
     """
-    accurate_predictions = predictions.argmax(dim=1) == targets.argmax(dim=1)
+    accurate_predictions = predictions.argmax(dim=1) == targets
     acc = float(accurate_predictions.float().mean(dim=0).numpy())
     return acc
 
@@ -76,37 +76,38 @@ def train():
     test_set = cifar10["test"]
     x_test, y_test = test_set.images, test_set.labels
     x_test = x_test.reshape(x_test.shape[0], reduce(mul, x_test.shape[1:]))
-    x_test = torch.Tensor(x_test)
-    y_test = torch.Tensor(y_test)
-
-    # Initialize model
     n_inputs = x_test.shape[1]
     n_classes = y_test.shape[1]
+    x_test = torch.Tensor(x_test)
+    y_test = torch.Tensor(y_test).argmax(dim=1)
+
+    # Initialize model
     mlp = MLP(n_inputs=n_inputs, n_hidden=dnn_hidden_units, n_classes=n_classes)
 
     # Prepare for training
     loss_func = nn.CrossEntropyLoss()
-    #optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
-    optimizer = optim.Adam(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    #optimizer = optim.Adam(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
     batch_nr_total = 0
-    test_predictions = mlp.forward(x_test)
-    acc = accuracy(test_predictions, y_test)
+    acc = 0
     batch_nr = 0
+    test_loss = -1
     num_batches = int(np.ceil(train_set.images.shape[0]) / BATCH_SIZE_DEFAULT)  # Number of batches per epoch
-    epochs = int(np.floor(MAX_STEPS_DEFAULT / num_batches))
+    epochs = int(np.ceil(MAX_STEPS_DEFAULT / num_batches))
 
     # Initialize data collection
     batch_losses = []
     current_epoch_losses = []
     epoch_losses = []
     all_accuracies = []
+    test_losses = []
 
     while batch_nr_total < MAX_STEPS_DEFAULT:
 
         completed_epochs = train_set.epochs_completed
         x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
         x = Variable(torch.Tensor(x.reshape(BATCH_SIZE_DEFAULT, reduce(mul, x_test.shape[1:]))))
-        y = Variable(torch.LongTensor(y).argmax(dim=1))
+        y = Variable(torch.Tensor(y).argmax(dim=1))
 
         # Forward pass and loss
         optimizer.zero_grad()
@@ -123,12 +124,13 @@ def train():
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
             with torch.no_grad():
-                test_predictions = mlp.forward(x_test)
-                acc = accuracy(test_predictions, y_test)
+                acc, test_loss = eval_model(mlp, loss_func, x_test, y_test)
+                test_losses.append(test_loss)
                 all_accuracies.append(acc)
 
-        print("\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
-                completed_epochs + 1, epochs, batch_nr, loss_, acc
+        print(
+            "\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Train Loss: {:.2f}, Test Loss {:.2f} | Test Accuracy: {:.4f}".format(
+                completed_epochs + 1, epochs, batch_nr, loss_, test_loss, acc
             ), end="", flush=True
         )
 
@@ -144,8 +146,33 @@ def train():
         else:
             batch_nr += 1
 
-    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, real_average=False)
-    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT)
+    # Last evaluation
+    acc, test_loss = eval_model(mlp, loss_func, x_test, y_test)
+    test_losses.append(test_loss)
+    all_accuracies.append(acc)
+    print("\nTraining finished, final test accuracy is {:.4f}\n".format(acc))
+
+    # Plotting
+    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, save_dont_show="./train_losses_mlp_pytorch.png")
+    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT, save_dont_show="./accuracy_mlp_pytorch.png", y_limits=(0.10, 0.55))
+    plot_test_loss(test_losses, save_dont_show="./test_losses_mlp_pytorch.png", eval_interval=EVAL_FREQ_DEFAULT)
+
+
+def eval_model(model, loss_func, x_test, y_test, batch_size=BATCH_SIZE_DEFAULT):
+    with torch.no_grad():
+        test_predictions = []
+
+        # Split to avoid memory errors -> Tensor with batch dimensionality of 10k might be too much
+        for test_batch in torch.split(x_test, batch_size, dim=0):
+            batch_predictions = model(test_batch)
+            test_predictions.append(batch_predictions)
+
+        test_predictions = torch.cat(test_predictions, dim=0)
+        acc = accuracy(test_predictions, y_test)
+        test_loss = loss_func(test_predictions, y_test)
+        test_loss = float(test_loss.detach().numpy())
+
+        return acc, test_loss
 
 
 def print_flags():

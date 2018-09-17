@@ -16,7 +16,7 @@ import cifar10_utils
 from operator import mul
 from functools import reduce
 
-from visualization import plot_losses, plot_accuracy
+from visualization import plot_losses, plot_accuracy, plot_test_loss
 
 # Default constants
 DNN_HIDDEN_UNITS_DEFAULT = '100'
@@ -84,24 +84,25 @@ def train(max_steps=MAX_STEPS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_r
     # Initialize model
     nn = MLP(n_inputs=N_INPUTS, n_hidden=dnn_hidden_units, n_classes=N_CLASSES)
     loss_func = CrossEntropyModule()
-    completed_epochs = 0
     batch_nr = 1
-    batch_nr_total = 1
-    test_predictions = nn.forward(x_test)
-    acc = accuracy(test_predictions, y_test)
-    x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
+    batch_nr_total = 0
+    acc = 0
+    test_loss = -1
 
     # Initialize data collection
     batch_losses = []
     current_epoch_losses = []
     epoch_losses = []
     all_accuracies = []
+    test_losses = []
 
     num_batches = int(np.ceil(train_set.images.shape[0]) / batch_size)  # Number of batches per epoch
-    epochs = int(np.floor(max_steps / num_batches))
+    epochs = int(np.ceil(max_steps / num_batches))
 
-    while completed_epochs < epochs:
+    while batch_nr_total < MAX_STEPS_DEFAULT:
 
+        completed_epochs = train_set.epochs_completed
+        x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
         x = x.reshape(batch_size, reduce(mul, x_test.shape[1:]))
 
         # Forward pass and loss
@@ -121,32 +122,47 @@ def train(max_steps=MAX_STEPS_DEFAULT, batch_size=BATCH_SIZE_DEFAULT, learning_r
 
         # Compute accuracy, print loss
         if batch_nr_total % EVAL_FREQ_DEFAULT == 0:
-            test_predictions = nn.forward(x_test)
-            acc = accuracy(test_predictions, y_test)
+            acc, test_loss = eval_model(nn, loss_func.forward, x_test, y_test)
             all_accuracies.append(acc)
+            test_losses.append(test_loss)
 
-        print("\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Loss: {:.2f} | Test Accuracy: {:.4f}".format(
-                completed_epochs + 1, epochs, batch_nr, loss, acc
+        print(
+            "\r[Epoch {:>2}/{:>2} | Batch #{:>3}] Train Loss: {:.2f}, Test Loss {:.2f} | Test Accuracy: {:.4f}".format(
+                completed_epochs + 1, epochs, batch_nr, loss, test_loss, acc
             ), end="", flush=True
         )
 
         # Prepare for next iteration
-        completed_epochs = train_set.epochs_completed
-        x, y = train_set.next_batch(BATCH_SIZE_DEFAULT)
         batch_nr_total += 1
 
         # Reset batch counter if a new epoch has started
         if train_set.epochs_completed > completed_epochs:
             print("")
             batch_nr = 1
-            completed_epochs = train_set.epochs_completed
             epoch_losses.append(sum(current_epoch_losses) / len(current_epoch_losses))
             current_epoch_losses = []
         else:
             batch_nr += 1
 
-    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses)
-    plot_accuracy(all_accuracies, eval_interval)
+    # Last evaluation
+    acc, test_loss = eval_model(nn, loss_func.forward, x_test, y_test)
+    test_losses.append(test_loss)
+    all_accuracies.append(acc)
+    print("\nTraining finished, final test accuracy is {:.4f}\n".format(acc))
+
+    # Plotting
+    plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, save_dont_show="./train_losses_mlp_np.png")
+    plot_accuracy(all_accuracies, eval_interval, save_dont_show="./accuracy_mlp_np.png", y_limits=(0.10, 0.55))
+    plot_test_loss(test_losses, save_dont_show="./test_losses_mlp_np.png", eval_interval=EVAL_FREQ_DEFAULT)
+
+
+def eval_model(model, loss_func, x_test, y_test):
+        test_predictions = model.forward(x_test)
+        acc = accuracy(test_predictions, y_test)
+        test_loss = loss_func(test_predictions, y_test)
+        test_loss = float(test_loss)
+
+        return acc, test_loss
 
 
 def print_flags():

@@ -17,7 +17,7 @@ class MLP(nn.Module):
     Once initialized an MLP object can perform forward.
     """
 
-    def __init__(self, n_inputs, n_hidden, n_classes):
+    def __init__(self, n_inputs, n_hidden, n_classes, custom_init=True):
         """
         Initializes MLP object.
 
@@ -34,19 +34,19 @@ class MLP(nn.Module):
         super().__init__()
 
         if len(n_hidden) == 0:
-            self.layers = [self._create_linear(n_inputs, n_classes)]
+            self.layers = [self._create_linear(n_inputs, n_classes, custom_init)]
         else:
-            self.layers = [self._create_linear(n_inputs, n_hidden[0])]
+            self.layers = [self._create_linear(n_inputs, n_hidden[0], custom_init)]
 
             for layer_index, layer_size in list(enumerate(n_hidden + [n_classes]))[1:]:
                 self.layers.append(nn.ReLU())
                 self.layers.append(nn.Dropout(p=0.2))
-                self.layers.append(self._create_linear(n_hidden[layer_index - 1], layer_size))
+                self.layers.append(self._create_linear(n_hidden[layer_index - 1], layer_size, custom_init))
 
         self.model = nn.Sequential(*self.layers)
 
     @staticmethod
-    def _create_linear(*dims, custom_init=False):
+    def _create_linear(*dims, custom_init=True):
         """
         Initialize weights and bias similar to the Numpy MLP.
         """
