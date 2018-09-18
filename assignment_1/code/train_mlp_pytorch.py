@@ -21,9 +21,9 @@ from torch.autograd import Variable
 from visualization import plot_losses, plot_accuracy, plot_test_loss
 
 # Default constants
-DNN_HIDDEN_UNITS_DEFAULT = '100'
-LEARNING_RATE_DEFAULT = 2e-3
-MAX_STEPS_DEFAULT = 1500
+DNN_HIDDEN_UNITS_DEFAULT = '800,400,200'
+LEARNING_RATE_DEFAULT = 1e-4
+MAX_STEPS_DEFAULT = 3000
 BATCH_SIZE_DEFAULT = 200
 EVAL_FREQ_DEFAULT = 100
 
@@ -82,12 +82,12 @@ def train():
     y_test = torch.Tensor(y_test).argmax(dim=1)
 
     # Initialize model
-    mlp = MLP(n_inputs=n_inputs, n_hidden=dnn_hidden_units, n_classes=n_classes)
+    mlp = MLP(n_inputs=n_inputs, n_hidden=dnn_hidden_units, n_classes=n_classes, custom_init=False)
 
     # Prepare for training
     loss_func = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
-    #optimizer = optim.Adam(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    #optimizer = optim.SGD(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
+    optimizer = optim.Adam(mlp.parameters(), lr=LEARNING_RATE_DEFAULT)
     batch_nr_total = 0
     acc = 0
     batch_nr = 0
@@ -156,7 +156,7 @@ def train():
 
     # Plotting
     plot_losses(batch_losses=batch_losses, epoch_losses=epoch_losses, save_dont_show="./train_losses_mlp_pytorch.png")
-    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT, save_dont_show="./accuracy_mlp_pytorch.png", y_limits=(0.10, 0.55))
+    plot_accuracy(all_accuracies, EVAL_FREQ_DEFAULT, save_dont_show="./accuracy_mlp_pytorch.png", y_limits=(0.10, 0.6))
     plot_test_loss(test_losses, save_dont_show="./test_losses_mlp_pytorch.png", eval_interval=EVAL_FREQ_DEFAULT)
 
 
