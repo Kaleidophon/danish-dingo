@@ -13,6 +13,7 @@ import pickle
 # Default paths for downloading CIFAR10 data
 CIFAR10_FOLDER = 'cifar10/cifar-10-batches-py'
 
+
 def load_cifar10_batch(batch_filename):
   """
   Loads single batch of CIFAR10 data.
