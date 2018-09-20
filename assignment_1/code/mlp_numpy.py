@@ -6,82 +6,66 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from modules import * 
+import modules
+
 
 class MLP(object):
-  """
-  This class implements a Multi-layer Perceptron in NumPy.
-  It handles the different layers and parameters of the model.
-  Once initialized an MLP object can perform forward and backward.
-  """
-
-  def __init__(self, n_inputs, n_hidden, n_classes):
     """
-    Initializes MLP object. 
-    
-    Args:
-      n_inputs: number of inputs.
-      n_hidden: list of ints, specifies the number of units
-                in each linear layer. If the list is empty, the MLP
-                will not have any linear layers, and the model
-                will simply perform a multinomial logistic regression.
-      n_classes: number of classes of the classification problem.
-                 This number is required in order to specify the
-                 output dimensions of the MLP
-    
-    TODO:
-    Implement initialization of the network.
+    This class implements a Multi-layer Perceptron in NumPy.
+    It handles the different layers and parameters of the model.
+    Once initialized an MLP object can perform forward and backward.
     """
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+    def __init__(self, n_inputs, n_hidden, n_classes):
+        """
+        Initializes MLP object.
 
-  def forward(self, x):
-    """
-    Performs forward pass of the input. Here an input tensor x is transformed through 
-    several layer transformations.
-    
-    Args:
-      x: input to the network
-    Returns:
-      out: outputs of the network
-    
-    TODO:
-    Implement forward pass of the network.
-    """
+        Args:
+          n_inputs: number of inputs.
+          n_hidden: list of ints, specifies the number of units
+                    in each linear layer. If the list is empty, the MLP
+                    will not have any linear layers, and the model
+                    will simply perform a multinomial logistic regression.
+          n_classes: number of classes of the classification problem.
+                     This number is required in order to specify the
+                     output dimensions of the MLP
+        """
+        if len(n_hidden) == 0:
+            self.layers = [modules.LinearModule(n_inputs, n_classes)]
+        else:
+            self.layers = [modules.LinearModule(n_inputs, n_hidden[0])]
 
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+            for layer, next_hidden in list(enumerate(n_hidden + [n_classes]))[1:]:
+                self.layers.append(modules.ReLUModule())
+                self.layers.append(modules.LinearModule(n_hidden[layer - 1], next_hidden))
 
-    return out
+        self.layers.append(modules.SoftMaxModule())
 
-  def backward(self, dout):
-    """
-    Performs backward pass given the gradients of the loss. 
+    def forward(self, x):
+        """
+        Performs forward pass of the input. Here an input tensor x is transformed through
+        several layer transformations.
 
-    Args:
-      dout: gradients of the loss
-    
-    TODO:
-    Implement backward pass of the network.
-    """
-    
-    ########################
-    # PUT YOUR CODE HERE  #
-    #######################
-    raise NotImplementedError
-    ########################
-    # END OF YOUR CODE    #
-    #######################
+        Args:
+          x: input to the network
+        Returns:
+          out: outputs of the network
+        """
+        out = x
 
-    return
+        for layer in self.layers:
+            out = layer.forward(out)
+
+        return out
+
+    def backward(self, dout):
+        """
+        Performs backward pass given the gradients of the loss.
+
+        Args:
+          dout: gradients of the loss
+        """
+        for layer in self.layers[::-1]:
+            dout = layer.backward(dout)
+
+        return dout
