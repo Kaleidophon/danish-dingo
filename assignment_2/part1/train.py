@@ -69,8 +69,6 @@ def train(config):
         "num_classes": config.num_classes, "batch_size": config.batch_size, "device": config.device
     }
     model = VanillaRNN(**model_kwargs) if config.model_type == "RNN" else LSTM(**model_kwargs)
-    input_length = config.input_length
-    batch_size = config.batch_size
 
     # Initialize the dataset and data loader (note the +1)
     dataset = PalindromeDataset(config.input_length+1)
@@ -87,7 +85,7 @@ def train(config):
         optimizer.zero_grad()
 
         for x_t in batch_inputs.split(1, dim=1):
-            x_t = Variable(x_t)
+            x_t = Variable(x_t, requires_grad=True)
             out = model(x_t)
 
         # Calculate loss and stuff
@@ -97,7 +95,7 @@ def train(config):
         accuracy = calculate_accuracy(out, y_t)
 
         # Clip gradients in order to avoid the exploding gradient problem during backward step
-        loss.backward()
+        loss.backward(retain_graph=True)
         torch.nn.utils.clip_grad_norm(model.parameters(), max_norm=config.max_norm)
         optimizer.step()
 
@@ -110,9 +108,8 @@ def train(config):
             print(
                 "\r[{}] Train Step {:04d}/{:04d}, Examples/Sec = {:.2f}, Accuracy = {:.2f}, Loss = {:.3f}".format(
                     datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    config.train_steps, config.batch_size, examples_per_second,
-                    accuracy, loss
-                ), flush=True, end="\n" if step % 1000 else ""
+                    config.train_steps, examples_per_second, accuracy, loss
+                ), flush=True, end="\n" if step % 100 == 0 else ""
             )
 
         if step == config.train_steps:

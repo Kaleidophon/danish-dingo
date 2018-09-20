@@ -36,10 +36,10 @@ class VanillaRNN(nn.Module):
         self.input_dim = input_dim
 
         # Define parameters
-        self.W_hx = nn.Parameter(torch.rand(input_dim, num_hidden)).to(device)
-        self.W_hh = nn.Parameter(torch.rand(num_hidden, num_hidden)).to(device)
+        self.W_hx = nn.Parameter(self._init_weights(input_dim, num_hidden)).to(device)
+        self.W_hh = nn.Parameter(self._init_weights(num_hidden, num_hidden)).to(device)
         self.b_h = nn.Parameter(torch.zeros(num_hidden)).to(device)
-        self.W_ph = nn.Parameter(torch.rand(num_hidden, self.num_classes)).to(device)
+        self.W_ph = nn.Parameter(self._init_weights(num_hidden, self.num_classes)).to(device)
         self.b_p = nn.Parameter(torch.zeros(num_classes)).to(device)
 
         # Define rest
@@ -62,3 +62,8 @@ class VanillaRNN(nn.Module):
             self.t = 0
 
         return p_t
+
+    @staticmethod
+    def _init_weights(*shape):
+        # TODO: How to init?
+        return torch.randn(*shape) / 5  # mu = 0, sigma^2 = 0.2
