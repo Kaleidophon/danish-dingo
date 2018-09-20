@@ -27,7 +27,11 @@ class VanillaRNN(nn.Module):
 
     def __init__(self, seq_length, input_dim, num_hidden, num_classes, batch_size, device='cpu'):
         super(VanillaRNN, self).__init__()
-        # Initialization here ...
+
+        self.W_hx = nn.Parameter(torch.Tensor(input_dim, num_hidden))
+        self.W_hh = nn.Parameter(torch.Tensor(num_hidden, num_hidden))
+        self.b_h = nn.Parameter(torch.Tensor(num_hidden, 1))
+
 
     def forward(self, x):
         # Implementation here ...
