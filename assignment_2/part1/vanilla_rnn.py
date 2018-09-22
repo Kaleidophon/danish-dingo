@@ -34,16 +34,17 @@ class VanillaRNN(nn.Module):
         self.batch_size = batch_size
         self.num_hidden = num_hidden
         self.input_dim = input_dim
+        self.device = device
 
         # Define parameters
-        self.W_hx = nn.Parameter(self._init_weights(input_dim, num_hidden)).to(device)
-        self.W_hh = nn.Parameter(self._init_weights(num_hidden, num_hidden)).to(device)
-        self.b_h = nn.Parameter(torch.zeros(num_hidden)).to(device)
-        self.W_ph = nn.Parameter(self._init_weights(num_hidden, self.num_classes)).to(device)
-        self.b_p = nn.Parameter(torch.zeros(num_classes)).to(device)
+        self.W_hx = nn.Parameter(self._init_weights(input_dim, num_hidden, device=device))
+        self.W_hh = nn.Parameter(self._init_weights(num_hidden, num_hidden, device=device))
+        self.b_h = nn.Parameter(torch.zeros(num_hidden, device=device))
+        self.W_ph = nn.Parameter(self._init_weights(num_hidden, self.num_classes, device=device))
+        self.b_p = nn.Parameter(torch.zeros(num_classes, device=device))
 
         # Define rest
-        self.h_previous = torch.zeros(batch_size, num_hidden)
+        self.h_previous = torch.zeros(batch_size, num_hidden, device=self.device)
         self.t = 0
 
     def forward(self, x):
@@ -58,12 +59,11 @@ class VanillaRNN(nn.Module):
             self.h_previous = h_t
         # Reset to initial hidden state if end of sequence was reached
         else:
-            self.h_previous = torch.zeros(self.batch_size, self.num_hidden)
+            self.h_previous = torch.zeros(self.batch_size, self.num_hidden, device=self.device)
             self.t = 0
 
         return p_t
 
     @staticmethod
-    def _init_weights(*shape):
-        # TODO: How to init?
-        return torch.randn(*shape) / 5  # mu = 0, sigma^2 = 0.2
+    def _init_weights(*shape, device):
+        return torch.randn(*shape).to(device) / 5  # mu = 0, sigma^2 = 0.2

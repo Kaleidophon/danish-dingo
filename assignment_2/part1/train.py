@@ -56,7 +56,7 @@ def calculate_accuracy(predictions, targets):
     return acc
 
 
-def train(config):
+def train(config, verbose=True):
 
     assert config.model_type in ('RNN', 'LSTM')
 
@@ -68,7 +68,12 @@ def train(config):
         "seq_length": config.input_length, "input_dim": config.input_dim, "num_hidden": config.num_hidden,
         "num_classes": config.num_classes, "batch_size": config.batch_size, "device": config.device
     }
-    model = VanillaRNN(**model_kwargs) if config.model_type == "RNN" else LSTM(**model_kwargs)
+
+    if config.model_type == "RNN":
+        model = VanillaRNN(**model_kwargs)
+    else:
+        model = LSTM(**model_kwargs)
+    model = model.to(device)
 
     # Initialize the dataset and data loader (note the +1)
     dataset = PalindromeDataset(config.input_length+1)
@@ -76,7 +81,8 @@ def train(config):
 
     # Setup the loss and optimizer
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=config.learning_rate)
+    best_accuracy = 0
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
@@ -85,14 +91,18 @@ def train(config):
         optimizer.zero_grad()
 
         for x_t in batch_inputs.split(1, dim=1):
-            x_t = Variable(x_t, requires_grad=True)
+            x_t = Variable(x_t, requires_grad=True).to(device)
             out = model(x_t)
 
         # Calculate loss and stuff
-        y_t = Variable(batch_targets)
+        y_t = Variable(batch_targets).to(device)
 
         loss = criterion(out, y_t)  # Only use last output for prediction
         accuracy = calculate_accuracy(out, y_t)
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            if best_accuracy == 1:
+                break
 
         # Clip gradients in order to avoid the exploding gradient problem during backward step
         loss.backward(retain_graph=True)
@@ -103,7 +113,7 @@ def train(config):
         t2 = time.time()
         examples_per_second = config.batch_size/float(t2-t1)
 
-        if step % 10 == 0:
+        if step % 10 == 0 and verbose:
 
             print(
                 "\r[{}] Train Step {:04d}/{:04d}, Examples/Sec = {:.2f}, Accuracy = {:.2f}, Loss = {:.3f}".format(
@@ -117,7 +127,10 @@ def train(config):
             # https://github.com/pytorch/pytorch/pull/9655
             break
 
-    print('Done training.')
+    if verbose:
+        print('Done training.')
+
+    return best_accuracy
 
 
  ################################################################################
@@ -141,6 +154,14 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default="cuda:0", help="Training device 'cpu' or 'cuda:0'")
 
     config = parser.parse_args()
+    #best_accuracy = train(config)
 
     # Train the model
-    train(config)
+    accuracies_by_length = []
+    for i in range(1, 51):
+        config.input_length = i
+        best_accuracy = train(config)
+        accuracies_by_length.append(best_accuracy)
+        print("Best accuracy for sequences of length {}: {:.4f}".format(i+1, best_accuracy))
+
+    print(accuracies_by_length)
