@@ -83,6 +83,9 @@ def train(config, verbose=True):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.RMSprop(model.parameters(), lr=config.learning_rate)
     best_accuracy = 0
+    accuracy = 0
+
+    batch_accuracies = []
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
@@ -98,11 +101,18 @@ def train(config, verbose=True):
         y_t = Variable(batch_targets).to(device)
 
         loss = criterion(out, y_t)  # Only use last output for prediction
-        accuracy = calculate_accuracy(out, y_t)
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            if best_accuracy == 1:
-                break
+
+        #accuracy = calculate_accuracy_for_data(model, device, dataset, config.batch_size)
+        batch_accuracy = calculate_accuracy(out, y_t)
+        batch_accuracies.append(batch_accuracy)
+
+        if step > 20:
+            accuracy = sum(batch_accuracies[-20:]) / 20
+
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                if best_accuracy == 1:
+                    break
 
         # Clip gradients in order to avoid the exploding gradient problem during backward step
         loss.backward(retain_graph=True)
@@ -154,11 +164,10 @@ if __name__ == "__main__":
     parser.add_argument('--device', type=str, default="cuda:0", help="Training device 'cpu' or 'cuda:0'")
 
     config = parser.parse_args()
-    #best_accuracy = train(config)
 
     # Train the model
     accuracies_by_length = []
-    for i in range(1, 51):
+    for i in range(4, 51):
         config.input_length = i
         best_accuracy = train(config)
         accuracies_by_length.append(best_accuracy)

@@ -27,39 +27,74 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.autograd import Variable
 
 from part3.dataset import TextDataset
 from part3.model import TextGenerationModel
 
 ################################################################################
 
+
+def calculate_accuracy(predictions, targets):
+    """
+    Computes the prediction accuracy, i.e. the average of correct predictions
+    of the network.
+
+    Args:
+      predictions: 2D float array of size [batch_size, n_classes]
+      labels: 2D int array of size [batch_size, n_classes]
+              with one-hot encoding. Ground truth labels for
+              each sample in the batch
+    Returns:
+      accuracy: scalar float, the accuracy of predictions,
+                i.e. the average correct predictions over the whole batch
+    """
+    accurate_predictions = predictions.argmax(dim=1) == targets
+    acc = float(accurate_predictions.cpu().float().mean(dim=0).numpy())
+    return acc
+
+
 def train(config):
 
     # Initialize the device which to run the model on
     device = torch.device(config.device)
 
-    # Initialize the model that we are going to use
-    model = TextGenerationModel( ... )  # fixme
-
     # Initialize the dataset and data loader (note the +1)
-    dataset = TextDataset( ... )  # fixme
+    dataset = TextDataset(config.txt_file, config.seq_length, )
     data_loader = DataLoader(dataset, config.batch_size, num_workers=1)
 
+    # Initialize the model that we are going to use
+    model = TextGenerationModel(
+        config.batch_size, config.seq_length, dataset.vocab_size, config.lstm_num_hidden, config.lstm_num_layers, device
+    )
+    seq_length, batch_size = config.seq_length, config.batch_size
+    num_classes = dataset.vocab_size
+
     # Setup the loss and optimizer
-    criterion = None  # fixme
-    optimizer = None  # fixme
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=config.learning_rate)
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
         t1 = time.time()
+        optimizer.zero_grad()
 
-        #######################################################
-        # Add more code here ...
-        #######################################################
+        # Get predictions
+        batch_inputs = torch.cat([batch_input.unsqueeze(0) for batch_input in batch_inputs], 0)
+        batch_targets = torch.cat([batch_input.unsqueeze(0) for batch_input in batch_inputs], 0)
+        indices = Variable(batch_inputs).to(device)
+        y = Variable(batch_targets).to(device)
+        out = model(indices)
 
-        loss = np.inf   # fixme
-        accuracy = 0.0  # fixme
+        # Reshape and calculate loss / accuracy
+        out = out.view(seq_length * batch_size, num_classes)
+        y = y.view(seq_length * batch_size)
+        loss = criterion(out, y)
+        #loss /= seq_length
+        loss.backward()
+        accuracy = calculate_accuracy(out, y)
+        optimizer.step()
 
         # Just for time measurement
         t2 = time.time()
@@ -70,7 +105,7 @@ def train(config):
             print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, Examples/Sec = {:.2f}, "
                   "Accuracy = {:.2f}, Loss = {:.3f}".format(
                     datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    config.train_steps, config.batch_size, examples_per_second,
+                    int(config.train_steps), config.batch_size, examples_per_second,
                     accuracy, loss
             ))
 
@@ -116,6 +151,7 @@ if __name__ == "__main__":
     parser.add_argument('--summary_path', type=str, default="./summaries/", help='Output path for summaries')
     parser.add_argument('--print_every', type=int, default=5, help='How often to print training progress')
     parser.add_argument('--sample_every', type=int, default=100, help='How often to sample from the model')
+    parser.add_argument('--device', type=str, default="cuda:0", help="Training device 'cpu' or 'cuda:0'")
 
     config = parser.parse_args()
 
