@@ -18,6 +18,7 @@ from __future__ import division
 from __future__ import print_function
 
 import torch.nn as nn
+import torch
 
 
 class TextGenerationModel(nn.Module):
@@ -38,14 +39,14 @@ class TextGenerationModel(nn.Module):
         self.lstm = nn.LSTM(self.embedding_dim, lstm_num_hidden, lstm_num_layers)
         self.projection_layer = nn.Linear(lstm_num_hidden, vocabulary_size)
 
-    def forward(self, indices):
+    def forward(self, indices, cell=None):
         # Get embeddings
         x = self.embeddings(indices)
+        x = x.unsqueeze(0)  # Add sequence "length" 1
 
         # Pad
-        out, _ = self.lstm(x)
-        out = out.view(self.batch_size * self.seq_length, self.lstm_num_hidden)
+        out, cell = self.lstm(x, cell)
+        out = out.squeeze(0)
         p = self.projection_layer(out)
-        p = p.view(self.seq_length, self.batch_size, self.vocabulary_size)
 
-        return p
+        return p, cell

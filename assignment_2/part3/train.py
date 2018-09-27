@@ -23,16 +23,36 @@ from datetime import datetime
 import argparse
 
 import numpy as np
+from random import choice
 
 import torch
+from torch.distributions import Categorical
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+import torch.nn.functional as F
 
 from part3.dataset import TextDataset
 from part3.model import TextGenerationModel
 
 ################################################################################
+
+
+def generate_sentence(model, seq_length, dataset, temperature=0.5):
+    with torch.no_grad():
+        index = choice(range(dataset.vocab_size))
+        generated = [dataset._ix_to_char[index]]
+        cell = None
+
+        for i in range(seq_length):
+            out, cell = model(torch.LongTensor([index]), cell)
+            out = F.softmax(out * temperature)
+            dist = Categorical(out)
+            predicted = int(dist.sample_n(1).numpy())
+            generated.append(dataset._ix_to_char[predicted])
+            index = predicted
+
+    print("Generated sentence: " + "".join(generated))
 
 
 def calculate_accuracy(predictions, targets):
@@ -72,28 +92,28 @@ def train(config):
 
     # Setup the loss and optimizer
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
         t1 = time.time()
         optimizer.zero_grad()
+        loss = 0
+        accuracy = 0
+        cell = None  # Initial cell state
 
-        # Get predictions
-        batch_inputs = torch.cat([batch_input.unsqueeze(0) for batch_input in batch_inputs], 0)
-        batch_targets = torch.cat([batch_input.unsqueeze(0) for batch_input in batch_inputs], 0)
-        indices = Variable(batch_inputs).to(device)
-        y = Variable(batch_targets).to(device)
-        out = model(indices)
+        for indices, targets in zip(batch_inputs, batch_targets):
+            indices = Variable(indices).to(device)
+            y = Variable(targets).to(device)
+            out, cell = model(indices, cell)
+            loss = criterion(out, y)
+            accuracy += calculate_accuracy(out, y)
 
         # Reshape and calculate loss / accuracy
-        out = out.view(seq_length * batch_size, num_classes)
-        y = y.view(seq_length * batch_size)
-        loss = criterion(out, y)
-        #loss /= seq_length
+        loss /= seq_length
         loss.backward()
-        accuracy = calculate_accuracy(out, y)
+        accuracy /= seq_length
         optimizer.step()
 
         # Just for time measurement
@@ -101,6 +121,8 @@ def train(config):
         examples_per_second = config.batch_size/float(t2-t1)
 
         if step % config.print_every == 0:
+            # Generate sentence
+            generate_sentence(model, seq_length, dataset, temperature=2)
 
             print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, Examples/Sec = {:.2f}, "
                   "Accuracy = {:.2f}, Loss = {:.3f}".format(
