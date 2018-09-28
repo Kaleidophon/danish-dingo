@@ -38,17 +38,17 @@ from part3.model import TextGenerationModel
 ################################################################################
 
 
-def generate_sentence(model, seq_length, dataset, temperature=0.5):
+def generate_sentence(model, seq_length, dataset, device, temperature=0.5):
     with torch.no_grad():
         index = choice(range(dataset.vocab_size))
         generated = [dataset._ix_to_char[index]]
         cell = None
 
         for i in range(seq_length):
-            out, cell = model(torch.LongTensor([index]), cell)
+            out, cell = model(torch.LongTensor([index]).to(device), cell)
             out = F.softmax(out * temperature)
             dist = Categorical(out)
-            predicted = int(dist.sample_n(1).numpy())
+            predicted = int(dist.sample_n(1).cpu().numpy())
             generated.append(dataset._ix_to_char[predicted])
             index = predicted
 
@@ -81,64 +81,72 @@ def train(config):
 
     # Initialize the dataset and data loader (note the +1)
     dataset = TextDataset(config.txt_file, config.seq_length, )
-    data_loader = DataLoader(dataset, config.batch_size, num_workers=1)
 
     # Initialize the model that we are going to use
     model = TextGenerationModel(
         config.batch_size, config.seq_length, dataset.vocab_size, config.lstm_num_hidden, config.lstm_num_layers, device
-    )
+    ).to(device)
     seq_length, batch_size = config.seq_length, config.batch_size
-    num_classes = dataset.vocab_size
 
     # Setup the loss and optimizer
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+    epoch = 0
+    break_loop = False
 
-    for step, (batch_inputs, batch_targets) in enumerate(data_loader):
+    while True:
+        data_loader = DataLoader(dataset, config.batch_size, num_workers=1, shuffle=True, drop_last=True)
+        num_batches = len(data_loader)
 
-        # Only for time measurement of step through network
-        t1 = time.time()
-        optimizer.zero_grad()
-        loss = 0
-        accuracy = 0
-        cell = None  # Initial cell state
+        for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
-        for indices, targets in zip(batch_inputs, batch_targets):
-            indices = Variable(indices).to(device)
-            y = Variable(targets).to(device)
-            out, cell = model(indices, cell)
-            loss = criterion(out, y)
-            accuracy += calculate_accuracy(out, y)
+            # Only for time measurement of step through network
+            t1 = time.time()
+            optimizer.zero_grad()
+            loss = 0
+            accuracy = 0
+            cell = None  # Initial cell state
 
-        # Reshape and calculate loss / accuracy
-        loss /= seq_length
-        loss.backward()
-        accuracy /= seq_length
-        optimizer.step()
+            for indices, targets in zip(batch_inputs, batch_targets):
+                indices = Variable(indices).to(device)
+                y = Variable(targets).to(device)
+                #out, cell = model(indices, cell)
+                #loss = criterion(out, y)
+                #accuracy += calculate_accuracy(out, y)
 
-        # Just for time measurement
-        t2 = time.time()
-        examples_per_second = config.batch_size/float(t2-t1)
+            # Reshape and calculate loss / accuracy
+            loss /= seq_length
+            #loss.backward()
+            accuracy /= seq_length
+            #optimizer.step()
 
-        if step % config.print_every == 0:
-            # Generate sentence
-            generate_sentence(model, seq_length, dataset, temperature=2)
+            # Just for time measurement
+            t2 = time.time()
+            examples_per_second = config.batch_size/float(t2-t1)
 
-            print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, Examples/Sec = {:.2f}, "
-                  "Accuracy = {:.2f}, Loss = {:.3f}".format(
-                    datetime.now().strftime("%Y-%m-%d %H:%M"), step,
-                    int(config.train_steps), config.batch_size, examples_per_second,
-                    accuracy, loss
-            ))
+            if (step + epoch * num_batches) % config.print_every == 0:
 
-        if step == config.sample_every:
-            # Generate some sentences by sampling from the model
-            pass
+                print("[{}] Train Step {:04d}/{:04d}, Batch Size = {}, Examples/Sec = {:.2f}, "
+                      "Accuracy = {:.2f}, Loss = {:.3f}".format(
+                        datetime.now().strftime("%Y-%m-%d %H:%M"), step + epoch * num_batches,
+                        int(config.train_steps), config.batch_size, examples_per_second,
+                        accuracy, loss
+                ))
 
-        if step == config.train_steps:
-            # If you receive a PyTorch data-loader error, check this bug report:
-            # https://github.com/pytorch/pytorch/pull/9655
-            break
+            if (step + epoch * num_batches) % config.sample_every == 0:
+                # Generate sentence
+                generate_sentence(model, seq_length, dataset, device, temperature=config.temperature)
+
+            if (step + epoch * num_batches) == config.train_steps:
+                # If you receive a PyTorch data-loader error, check this bug report:
+                # https://github.com/pytorch/pytorch/pull/9655
+                break_loop = True
+                break
+        else:
+            if break_loop:
+                break
+
+        epoch += 1
 
     print('Done training.')
 
@@ -174,8 +182,10 @@ if __name__ == "__main__":
     parser.add_argument('--print_every', type=int, default=5, help='How often to print training progress')
     parser.add_argument('--sample_every', type=int, default=100, help='How often to sample from the model')
     parser.add_argument('--device', type=str, default="cuda:0", help="Training device 'cpu' or 'cuda:0'")
+    parser.add_argument('--temperature', type=float, default=2, help="Temperature for sampling when generating sentences.")
 
     config = parser.parse_args()
+    print(config)
 
     # Train the model
     train(config)
