@@ -38,21 +38,33 @@ from part3.model import TextGenerationModel
 ################################################################################
 
 
-def generate_sentence(model, seq_length, dataset, device, temperature=0.5):
+def generate_sentence(model, seq_length, dataset, device, temperature=2, sampled_ch_idx=None):
     with torch.no_grad():
-        index = choice(range(dataset.vocab_size))
+        if sampled_ch_idx is None:
+            index = choice(range(dataset.vocab_size))
+        else:
+            index = sampled_ch_idx
+
+        initially_sampled = index
         generated = [dataset._ix_to_char[index]]
         cell = None
 
         for i in range(seq_length):
             out, cell = model(torch.LongTensor([index]).to(device), cell)
-            out = F.softmax(out * temperature)
-            dist = Categorical(out)
-            predicted = int(dist.sample_n(1).cpu().numpy())
+
+            if temperature is None:
+                predicted = int(out.argmax().cpu().numpy())
+            else:
+                out = F.softmax(out / temperature)
+                dist = Categorical(out)
+                predicted = int(dist.sample_n(1).cpu().numpy())
             generated.append(dataset._ix_to_char[predicted])
             index = predicted
 
-    print("Generated sentence: " + "".join(generated))
+    print_temp = "greedily" if temperature is None else "with temperature {}".format(temperature)
+    print("Generated sentence {}: {}".format(print_temp, "".join(generated).replace("\r", "").replace("\n", " ")))
+
+    return initially_sampled
 
 
 def calculate_accuracy(predictions, targets):
@@ -110,15 +122,16 @@ def train(config):
             for indices, targets in zip(batch_inputs, batch_targets):
                 indices = Variable(indices).to(device)
                 y = Variable(targets).to(device)
-                #out, cell = model(indices, cell)
-                #loss = criterion(out, y)
-                #accuracy += calculate_accuracy(out, y)
+                out, cell = model(indices, cell)
+                loss = criterion(out, y)
+                accuracy += calculate_accuracy(out, y)
 
             # Reshape and calculate loss / accuracy
             loss /= seq_length
-            #loss.backward()
+            loss.backward()
             accuracy /= seq_length
-            #optimizer.step()
+            torch.nn.utils.clip_grad_norm(model.parameters(), max_norm=config.max_norm)
+            optimizer.step()
 
             # Just for time measurement
             t2 = time.time()
@@ -135,7 +148,9 @@ def train(config):
 
             if (step + epoch * num_batches) % config.sample_every == 0:
                 # Generate sentence
-                generate_sentence(model, seq_length, dataset, device, temperature=config.temperature)
+                idx = None  # Generate sentences with the first initial character
+                for temp in [None, 0.5, 1, 2]:
+                    idx = generate_sentence(model, seq_length, dataset, device, temperature=temp, sampled_ch_idx=idx)
 
             if (step + epoch * num_batches) == config.train_steps:
                 # If you receive a PyTorch data-loader error, check this bug report:
@@ -182,7 +197,7 @@ if __name__ == "__main__":
     parser.add_argument('--print_every', type=int, default=5, help='How often to print training progress')
     parser.add_argument('--sample_every', type=int, default=100, help='How often to sample from the model')
     parser.add_argument('--device', type=str, default="cuda:0", help="Training device 'cpu' or 'cuda:0'")
-    parser.add_argument('--temperature', type=float, default=2, help="Temperature for sampling when generating sentences.")
+    parser.add_argument('--temperature', type=float, default=None, help="Temperature for sampling when generating sentences.")
 
     config = parser.parse_args()
     print(config)

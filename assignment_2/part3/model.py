@@ -44,7 +44,6 @@ class TextGenerationModel(nn.Module):
         x = self.embeddings(indices)
         x = x.unsqueeze(0)  # Add sequence "length" 1
 
-        # Pad
         out, cell = self.lstm(x, cell)
         out = out.squeeze(0)
         p = self.projection_layer(out)
