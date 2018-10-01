@@ -85,8 +85,6 @@ def train(config, verbose=True):
     best_accuracy = 0
     accuracy = 0
 
-    batch_accuracies = []
-
     for step, (batch_inputs, batch_targets) in enumerate(data_loader):
 
         # Only for time measurement of step through network
@@ -99,20 +97,15 @@ def train(config, verbose=True):
 
         # Calculate loss and stuff
         y_t = Variable(batch_targets).to(device)
-
         loss = criterion(out, y_t)  # Only use last output for prediction
+        accuracy = calculate_accuracy(out, y_t)
 
-        #accuracy = calculate_accuracy_for_data(model, device, dataset, config.batch_size)
-        batch_accuracy = calculate_accuracy(out, y_t)
-        batch_accuracies.append(batch_accuracy)
+        # Check accuracy
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
 
-        if step > 20:
-            accuracy = sum(batch_accuracies[-20:]) / 20
-
-            if accuracy > best_accuracy:
-                best_accuracy = accuracy
-                if best_accuracy == 1:
-                    break
+            if best_accuracy == 1:
+                break
 
         # Clip gradients in order to avoid the exploding gradient problem during backward step
         loss.backward(retain_graph=True)

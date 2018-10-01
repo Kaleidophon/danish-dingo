@@ -38,31 +38,55 @@ from part3.model import TextGenerationModel
 ################################################################################
 
 
-def generate_sentence(model, seq_length, dataset, device, temperature=2, sampled_ch_idx=None):
+def generate_sentence(model, seq_length, dataset, device, temperature=2, sampled_ch_idx=None, seed_phrase=None):
+    """
+    Generate a sequence with a LSTM model by sampling from character distributions.
+    """
     with torch.no_grad():
+        # Generate first character unless character has already been generated somewhere else
+        # (The first character might be shared among sampling methods to ensure comparability)
         if sampled_ch_idx is None:
             index = choice(range(dataset.vocab_size))
         else:
             index = sampled_ch_idx
 
         initially_sampled = index
-        generated = [dataset._ix_to_char[index]]
+        generated = []
         cell = None
 
+        # Use an initial string to "warm up" the model
+        if seed_phrase is not None:
+            for ch in seed_phrase:
+                index = dataset._char_to_ix[ch]
+                out, cell = model(torch.LongTensor([index]).to(device), cell)
+            index = int(out.argmax().cpu().numpy())
+        else:
+            generated.append(dataset._ix_to_char[index])
+
+        # Sample phrase
         for i in range(seq_length):
             out, cell = model(torch.LongTensor([index]).to(device), cell)
 
+            # Greedy sampling
             if temperature is None:
                 predicted = int(out.argmax().cpu().numpy())
+
+            # Sampling with temperature
             else:
                 out = F.softmax(out / temperature)
                 dist = Categorical(out)
                 predicted = int(dist.sample_n(1).cpu().numpy())
+
             generated.append(dataset._ix_to_char[predicted])
             index = predicted
 
+    # Print results
     print_temp = "greedily" if temperature is None else "with temperature {}".format(temperature)
-    print("Generated sentence {}: {}".format(print_temp, "".join(generated).replace("\r", "").replace("\n", " ")))
+    sampled_phrase = "{}{}".format(
+        seed_phrase if seed_phrase is not None else "",
+        "".join(generated).replace("\r", "").replace("\n", " ")
+    )
+    print("Generated sentence {}: {}".format(print_temp, sampled_phrase))
 
     return initially_sampled
 
@@ -150,7 +174,9 @@ def train(config):
                 # Generate sentence
                 idx = None  # Generate sentences with the first initial character
                 for temp in [None, 0.5, 1, 2]:
-                    idx = generate_sentence(model, seq_length, dataset, device, temperature=temp, sampled_ch_idx=idx)
+                    idx = generate_sentence(
+                        model, seq_length, dataset, device, temperature=temp, sampled_ch_idx=idx, seed_phrase="North America "
+                    )
 
             if (step + epoch * num_batches) == config.train_steps:
                 # If you receive a PyTorch data-loader error, check this bug report:
