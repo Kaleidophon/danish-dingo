@@ -1,3 +1,3 @@
 # UvA Deep Learning Course Practical Assignments
 
- 1. The assignment 1 is released. The deadline is **September 18th, 23:59**.
+ Solutions created by me during the UvA Deep Learning Course 2018/2019.
