@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from datasets.bmnist import bmnist
 import numpy as np
+from scipy.stats import norm
 
 
 class Encoder(nn.Module):
@@ -81,7 +82,7 @@ class VAE(nn.Module):
         bernoulli_loss = input * torch.log(decoded) + (1 - input) * torch.log(1 - decoded)
         bernoulli_loss = -torch.sum(bernoulli_loss, dim=1)
         bernoulli_loss = torch.sum(bernoulli_loss, dim=0)
-        kl_loss = -0.5 * torch.sum(1 + torch.log(std.pow(2)) - mean.pow(2) - std.pow(2))
+        kl_loss = -0.5 * torch.sum(1 + torch.log(std.pow(2) + 1e-5) - mean.pow(2) - std.pow(2))
         average_negative_elbo = bernoulli_loss + kl_loss
 
         return average_negative_elbo
@@ -92,9 +93,12 @@ class VAE(nn.Module):
         (from bernoulli) and the means for these bernoullis (as these are
         used to plot the data manifold).
         """
-        sampled_ims, im_means = None, None
-        raise NotImplementedError()
+        with torch.no_grad():
+            sampled_z = torch.FloatTensor(np.random.normal(0, 1, (n_samples, self.z_dim)))
+            sampled_ims = self.decoder.forward(sampled_z)
+            sampled_ims = sampled_ims.view(n_samples, 1, 28, 28)
 
+        im_means = sampled_ims.mean(dim=1)
         return sampled_ims, im_means
 
 
@@ -151,10 +155,45 @@ def save_elbo_plot(train_curve, val_curve, filename):
     plt.savefig(filename)
 
 
+def plot_sampled_images(images, filename):
+    grid = make_grid(images, padding=1, nrow=images.size()[0])
+    npimg = grid.numpy()
+    plt.imshow(np.transpose(npimg, (1, 2, 0)), interpolation='nearest')
+    plt.axis('off')
+    plt.tight_layout()
+    plt.savefig(filename)
+
+
+def plot_manifold(model, filename):
+    n_rows = 20
+
+    x_coords = np.linspace(-1, 1, n_rows)
+    unit_square = np.transpose([np.tile(x_coords, len(x_coords)), np.repeat(x_coords, len(x_coords))])
+    x_coords_trans = np.linspace(norm.ppf(0.01), norm.ppf(0.99), n_rows)
+    unit_square_trans = np.transpose(
+        [np.tile(x_coords_trans, len(x_coords_trans)), np.repeat(x_coords_trans, len(x_coords_trans))])
+
+    # Visualize learned data manifold with transformed unit square coordinates
+    fig = plt.figure(figsize=(10, 10))
+
+    for i, coords in enumerate(unit_square_trans):
+        plt.subplot(n_rows, n_rows, i + 1)
+        plt.axis("off")
+
+        coords = torch.FloatTensor(coords).unsqueeze(0)
+        decoded = model.decoder(coords)
+        decoded *= -1  # Invert colors
+        plt.imshow(decoded.view(28, 28).data.numpy(), cmap='gist_gray')
+
+    plt.savefig(filename)
+
+
 def main():
     data = bmnist()[:2]  # ignore test split
     model = VAE(z_dim=ARGS.zdim)
     optimizer = torch.optim.Adam(model.parameters())
+    n_samples = 5
+    sample_epochs = (0, 4, 9, 14, 19, 24, 29, 34, 39)
 
     train_curve, val_curve = [], []
     for epoch in range(ARGS.epochs):
@@ -163,19 +202,15 @@ def main():
         train_curve.append(train_elbo)
         val_curve.append(val_elbo)
         print(f"[Epoch {epoch:<2}] train elbo: {train_elbo:.4f} val_elbo: {val_elbo:.4f}")
+        sampled_images, _ = model.sample(n_samples=n_samples)
 
-        # --------------------------------------------------------------------
-        #  Add functionality to plot samples from model during training.
-        #  You can use the make_grid functioanlity that is already imported.
-        # --------------------------------------------------------------------
-
-    # --------------------------------------------------------------------
-    #  Add functionality to plot plot the learned data manifold after
-    #  if required (i.e., if zdim == 2). You can use the make_grid
-    #  functionality that is already imported.
-    # --------------------------------------------------------------------
+        if epoch in sample_epochs:
+            plot_sampled_images(sampled_images, "./sampled_digits/sampled_{}_epoch_{}.png".format(n_samples, epoch + 1))
 
     save_elbo_plot(train_curve, val_curve, 'elbo.pdf')
+
+    if ARGS.zdim == 2:
+        plot_manifold(model, "./manifold.png")
 
 
 if __name__ == "__main__":
