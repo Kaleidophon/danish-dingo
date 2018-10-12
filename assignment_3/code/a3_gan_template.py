@@ -30,7 +30,7 @@ class Generator(nn.Module):
             nn.BatchNorm1d(1024),
             nn.LeakyReLU(negative_slope),
             nn.Linear(1024, 784),
-            nn.Sigmoid()
+            nn.Tanh()
         )
 
     def forward(self, z):
@@ -63,17 +63,17 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
         for i, (images, _) in enumerate(dataloader):
 
             batch_size = images.size()[0]
-            images = Variable(images.view(batch_size, 28 * 28))
-            images.to(device)
+            images = Variable(images.view(batch_size, 28 * 28)).to(device)
             latent_dim = generator.latent_dim
 
             # Train Generator
             # ---------------
             optimizer_G.zero_grad()
-            z = Variable(torch.empty(batch_size, latent_dim).uniform_(0, 1).to(device))  # Sample noise
-            fake_imgs = generator(z)
-            real_labels = torch.ones(batch_size, 1)
-            fake_predictions = discriminator(fake_imgs)
+            z = Variable(torch.empty(batch_size, latent_dim).normal_(0, 1).to(device))  # Sample noise
+            fake_images = generator(z)
+            # Use noisy labels
+            real_labels = torch.ones(batch_size, 1).to(device) * torch.empty(batch_size, 1).uniform_(0.7, 1.2)
+            fake_predictions = discriminator(fake_images)
             generator_loss = criterion(fake_predictions, real_labels)
             generator_loss.backward()
             optimizer_G.step()
@@ -81,7 +81,8 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
             # Train Discriminator
             # -------------------
             optimizer_D.zero_grad()
-            fake_labels = torch.zeros(batch_size, 1)
+            # Use noisy labels
+            fake_labels = torch.zeros(batch_size, 1).to(device) * torch.empty(batch_size, 1).uniform_(0, 0.3)
             real_predictions = discriminator(images)
             real_loss = criterion(real_predictions, real_labels)
             fake_loss = criterion(fake_predictions.detach(), fake_labels)
@@ -92,7 +93,7 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
             # Screen output
             if (i + 1) % args.print_interval == 0:
                 print(
-                    "\r[Epoch {:>2}/{:>2}, Batches {:>3}/{:>3}] | Generator loss: {:.4f} | Discriminator loss: {:.4f}".format(
+                    "\r[Epoch {:>2}/{:>2}, Batch {:>3}/{:>3}] || Generator loss: {:.4f} | Discriminator loss: {:.4f}".format(
                         epoch+1, args.n_epochs, i+1, num_batches, generator_loss, discriminator_loss
                     ), end="\n" if (i + 1) % (args.print_interval * 10) == 0 and i != 0 else "", flush=True
                 )
@@ -101,13 +102,10 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
             # -----------
             batches_done = epoch * len(dataloader) + i
             if batches_done % args.save_interval == 0:
-                # You can use the function save_image(Tensor (shape Bx1x28x28),
-                # filename, number of rows, normalize) to save the generated
-                # images, e.g.:
-                # save_image(gen_imgs[:25],
-                #            'images/{}.png'.format(batches_done),
-                #            nrow=5, normalize=True)
-                pass
+                fake_images = fake_images.view(batch_size, 1, 28, 28)
+                save_image(
+                    fake_images[:25], 'images/{}.png'.format(batches_done), nrow=5, normalize=True
+                )
 
 
 def main(args):
@@ -124,8 +122,8 @@ def main(args):
         batch_size=args.batch_size, shuffle=True)
 
     # Initialize models and optimizers
-    generator = Generator(args.latent_dim)
-    discriminator = Discriminator()
+    generator = Generator(args.latent_dim).to(device)
+    discriminator = Discriminator().to(device)
     optimizer_G = torch.optim.Adam(generator.parameters(), lr=args.lr)
     optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=args.lr)
 
@@ -134,7 +132,8 @@ def main(args):
 
     # You can save your generator here to re-use it to generate images for your
     # report, e.g.:
-    # torch.save(generator.state_dict(), "mnist_generator.pt")
+    torch.save(generator.state_dict(), "mnist_generator.pt")
+    torch.save(discriminator.state_dict(), "mnist_discriminator.pt")
 
 
 if __name__ == "__main__":
@@ -150,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_interval', type=int, default=500,
                         help='save every SAVE_INTERVAL iterations')
     parser.add_argument('--print_interval', type=int, default=100,
-                        help='save every SAVE_INTERVAL iterations')
+                        help='Print every PRINT_INTERVAL iterations')
     args = parser.parse_args()
 
     main(args)
