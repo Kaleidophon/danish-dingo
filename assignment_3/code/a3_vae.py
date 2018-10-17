@@ -94,12 +94,14 @@ class VAE(nn.Module):
         used to plot the data manifold).
         """
         with torch.no_grad():
-            sampled_z = torch.FloatTensor(np.random.normal(0, 1, (n_samples, self.z_dim)))
-            sampled_ims = self.decoder.forward(sampled_z)
+            sampled_z = torch.randn(n_samples, self.z_dim)
+            bernoulli_means = self.decoder.forward(sampled_z)
+
+            # Sample
+            sampled_ims = torch.bernoulli(bernoulli_means)
             sampled_ims = sampled_ims.view(n_samples, 1, 28, 28)
 
-        im_means = sampled_ims.mean(dim=1)
-        return sampled_ims, im_means
+        return sampled_ims, bernoulli_means
 
 
 def epoch_iter(model, data, optimizer):
@@ -193,9 +195,9 @@ def main():
     model = VAE(z_dim=ARGS.zdim)
     optimizer = torch.optim.Adam(model.parameters())
     n_samples = 5
-    sample_epochs = (0, 4, 9, 14, 19, 24, 29, 34, 39)
-
+    sample_epochs = (0, 4, 9, 14, 19, 24, 29, 34, 39)  # Define when to sample images
     train_curve, val_curve = [], []
+
     for epoch in range(ARGS.epochs):
         elbos = run_epoch(model, data, optimizer)
         train_elbo, val_elbo = elbos

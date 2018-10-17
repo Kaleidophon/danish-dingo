@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 from torchvision.utils import save_image
 from torchvision import datasets
 from torch.autograd import Variable
+import random
 
 # Determine if GPU is available
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -69,11 +70,12 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
             # Train Generator
             # ---------------
             optimizer_G.zero_grad()
-            z = Variable(torch.empty(batch_size, latent_dim).normal_(0, 1).to(device))  # Sample noise
+            z = Variable(torch.randn(batch_size, latent_dim).to(device))  # Sample noise
             fake_images = generator(z)
             # Use noisy labels
-            real_labels = torch.ones(batch_size, 1).to(device) * torch.empty(batch_size, 1).uniform_(0.7, 1.2)
+            real_labels = torch.empty(batch_size, 1).uniform_(0.8, 1.1).to(device)
             fake_predictions = discriminator(fake_images)
+            # How well did the generator fool the discriminator?
             generator_loss = criterion(fake_predictions, real_labels)
             generator_loss.backward()
             optimizer_G.step()
@@ -82,10 +84,13 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
             # -------------------
             optimizer_D.zero_grad()
             # Use noisy labels
-            fake_labels = torch.zeros(batch_size, 1).to(device) * torch.empty(batch_size, 1).uniform_(0, 0.3)
+            fake_labels = torch.empty(batch_size, 1).uniform_(0, 0.2).to(device)
             real_predictions = discriminator(images)
+            # How well was the discriminator able to identify real images?
             real_loss = criterion(real_predictions, real_labels)
-            fake_loss = criterion(fake_predictions.detach(), fake_labels)
+            # How well was the discriminator able to identify forged images?
+            fake_predictions2 = discriminator(fake_images.detach())
+            fake_loss = criterion(fake_predictions2, fake_labels)
             discriminator_loss = 0.5 * (real_loss + fake_loss)
             discriminator_loss.backward()
             optimizer_D.step()
@@ -106,6 +111,49 @@ def train(dataloader, discriminator, generator, optimizer_G, optimizer_D):
                 save_image(
                     fake_images[:25], 'images/{}.png'.format(batches_done), nrow=5, normalize=True
                 )
+
+                # Interpolations
+                # Do it during training due to some mysterious problems
+                for inter in range(10):
+                    # Sample two of the digits that just were generated
+                    z1 = z[random.randint(0, batch_size-1), :]
+                    z2 = z[random.randint(0, batch_size-1), :]
+
+                    create_interpolations(
+                        z1, z2, generator, discriminator,
+                        figure_path="interpolation{}_epoch_{}_".format(inter, epoch) + "{}.png",
+                    )
+
+
+def interpolate_z(z1, z2, num_interpolations=7, latent_dim=100):
+    diff = z2 - z1
+    interpolations = [z1]
+
+    for i in range(num_interpolations):
+        interpolations.append(z1 + i / num_interpolations * diff)
+
+    interpolations.append(z2)
+    interpolations = torch.cat(interpolations, dim=0).view(num_interpolations + 2, latent_dim).to(device)
+
+    return interpolations
+
+
+def create_interpolations(z1, z2, generator, discriminator, figure_path, latent_dim=100, num_interpolations=7):
+    generator.eval()
+    discriminator.eval()
+
+    with torch.no_grad():
+
+        interpolated_zs = interpolate_z(z1, z2, num_interpolations=num_interpolations, latent_dim=latent_dim)
+        generated_imgs = generator(interpolated_zs)
+        generated_imgs = generated_imgs.view(num_interpolations + 2, 1, 28, 28)
+
+        save_image(
+            generated_imgs, figure_path, nrow=num_interpolations + 2, normalize=True
+        )
+
+    generator.train()
+    discriminator.train()
 
 
 def main(args):
@@ -132,8 +180,8 @@ def main(args):
 
     # You can save your generator here to re-use it to generate images for your
     # report, e.g.:
-    torch.save(generator.state_dict(), "mnist_generator.pt")
-    torch.save(discriminator.state_dict(), "mnist_discriminator.pt")
+    torch.save(generator, "mnist_generator.pt")
+    torch.save(discriminator, "mnist_discriminator.pt")
 
 
 if __name__ == "__main__":
